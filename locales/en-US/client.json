@@ -1,0 +1,42 @@
+{
+    "msgbus-v2": {
+        "label": {
+            "broker": "Server",
+            "nodename": "Nodename",
+            "domain": "Domain",
+            "name": "Name",
+
+            "qos": "QoS",
+            "clientid": "Client ID",
+            "port": "Port",
+            "keepalive": "Keep alive time (s)",
+            "cleansession": "Use clean session",
+            "use-tls": "Enable secure (SSL/TLS) connection",
+            "tls-config":"TLS Configuration",
+            "verify-server-cert":"Verify server certificate",
+            "compatmode": "Use legacy MQTT 3.1 support",
+            "username": "Username",
+            "password": "Password"
+        },
+        "placeholder": {
+            "nodename": "Nodename e.g. an UUID",
+            "domain": "domain",
+            "name": "Name",
+
+            "clientid": "Leave blank for auto generated",
+            "clientid-nonclean":"Must be set for non-clean sessions"
+        },
+        "state": {
+            "connected": "Connected to broker: __broker__",
+            "disconnected": "Disconnected from broker: __broker__",
+            "connect-failed": "Connection failed to broker: __broker__"
+        },
+        "errors": {
+            "missing-config": "missing broker configuration",
+
+            "not-defined": "topic not defined",
+            "invalid-topic": "Invalid topic specified",
+            "nonclean-missingclientid": "No client ID set, using clean session"
+        }
+    }
+}

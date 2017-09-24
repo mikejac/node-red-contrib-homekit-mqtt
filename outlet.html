@@ -1,0 +1,89 @@
+<!--
+  Copyright 2016 Michael Jacobsen / Marius Schmeding.
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+  http://www.apache.org/licenses/LICENSE-2.0
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
+<script type="text/x-red" data-template-name="homekit-outlet">
+    <div class="form-row">
+        <label for="node-input-accessory">
+        <i class="fa fa-rocket"></i>
+        Accessory</label>
+        <input id="node-input-accessory">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-name">
+            <i class="fa fa-tag"></i>
+            Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <b>Default values</b>
+    </div>
+
+    <div class="form-row">
+        <label for="node-config-input-outletinuse" style="width: auto"><i class="fa fa-tag"></i> In Use</label>
+        <input type="checkbox" id="node-config-input-outletinuse" style="display: inline-block; width: auto; vertical-align: top;">
+    </div>
+
+    <div class="form-tips">
+        <b>Input</b><br/>
+        <code>msg.topic</code> must be one of these:<br/>
+        <i><nbsp>on</i><br/>
+        <i><nbsp>outletinuse</i><br/>
+        <br/>
+        <b>Outputs</b><br/>
+        <code>1:</code> On<br/>
+        <code>2:</code> OutletInUse<br/>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('homekit-outlet', {
+        category: 'homekit-function',
+        paletteLabel: 'Outlet',
+        defaults: {
+            accessory: {
+                value: "",
+                type: "homekit-accessory",
+                required: true
+            },
+            name: {
+                value: ""
+            },
+            serviceName: {
+                value: "Outlet",
+                required: true
+            },
+            outletinuse: {
+                value: true
+            }
+        },
+        inputs: 1,
+        outputs: 2,
+        icon: "homekit.png",
+        color: "#fcc127",
+        label: function() {
+            return this.name || "Outlet";
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : ""
+        },
+        oneditprepare: function () {
+            if (typeof this.outletinuse === 'undefined') {
+                this.outletinuse = true
+            }
+
+            $("#node-config-input-outletinuse").prop("checked", this.outletinuse)
+        }
+    })
+</script>

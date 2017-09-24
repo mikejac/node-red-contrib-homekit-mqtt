@@ -1,0 +1,293 @@
+<!--
+  Copyright 2013, 2016 IBM Corp.
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+  http://www.apache.org/licenses/LICENSE-2.0
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!--
+<script type="text/x-red" data-template-name="msgbus-v2 status">
+    <div class="form-row">
+        <label for="node-input-client"><i class="fa fa-globe"></i> Server</span></label>
+        <input type="text" id="node-input-client">
+    </div>
+    <div class="form-row">
+        <label for="node-input-qos"><i class="fa fa-empire"></i> QoS</span></label>
+        <select id="node-input-qos" style="width:125px !important">
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-source"><i class="fa fa-tag"></i> From</span></label>
+        <input type="text" id="node-input-source" Leave blank for any>
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</span></label>
+        <input type="text" id="node-input-name" Name>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('msgbus-v2 status',{
+        category: 'msgbus-input',
+        paletteLabel: 'Status',
+        defaults: {
+            client: {type:"msgbus-v2-client", required:true},
+            qos: {value:"2"},
+            source: {value:""},
+            name: {value:""},
+        },
+        color:"#d8bfd8",
+        inputs:0,
+        outputs:3,
+        icon: "bridge.png",
+        label: function() {
+            return this.name||this.topic||"msgbus-v2 status";
+        },
+        labelStyle: function() {
+            return this.name?"node_label_italic":"";
+        },
+        oneditprepare: function() {
+            if (this.qos === undefined) {
+                $("#node-input-qos").val("2");
+            }
+        }
+    });
+</script>
+-->
+<!--
+<script type="text/x-red" data-template-name="msgbus-v2 debug">
+    <div class="form-row">
+        <label for="node-input-client"><i class="fa fa-globe"></i> Server</span></label>
+        <input type="text" id="node-input-client">
+    </div>
+    <div class="form-row">
+        <label for="node-input-source"><i class="fa fa-tag"></i> From</span></label>
+        <input type="text" id="node-input-source" Leave blank for any>
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</span></label>
+        <input type="text" id="node-input-name" Name>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('msgbus-v2 debug',{
+        category: 'msgbus-input',
+        paletteLabel: 'Debug',
+        defaults: {
+            client: {type:"msgbus-v2-client", required:true},
+            source: {value:""},
+            name: {value:""}
+        },
+        color:"#d8bfd8",
+        inputs:0,
+        outputs:2,
+        icon: "bridge.png",
+        label: function() {
+            return this.name||"msgbus-v2 debug";
+        },
+        labelStyle: function() {
+            return this.name?"node_label_italic":"";
+        }
+    });
+</script>
+-->
+<script type="text/x-red" data-template-name="msgbus-v2 io">
+    <div class="form-row">
+        <label for="node-input-client"><i class="fa fa-globe"></i> Server</span></label>
+        <input type="text" id="node-input-client">
+    </div>
+    <div class="form-row">
+        <label for="node-input-nodename"><i class="fa fa-tag"></i> Nodename</span></label>
+        <input type="text" id="node-input-nodename" Nodename>
+    </div>
+    <div class="form-row">
+        <label for="node-input-dataid"><i class="fa fa-tag"></i> Data Id</span></label>
+        <input type="text" id="node-input-dataid" Data Id>
+    </div>
+    <div class="form-row">
+        <label for="node-input-wdt"><i class="fa fa-tag"></i> Watchdog</span></label>
+        <input type="text" id="node-input-wdt" 60>
+    </div>
+    <div class="form-row">
+        <label for="node-input-event"><i class="fa fa-tag"></i> Event</span></label>
+        <input type="text" id="node-input-event" Event>
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</span></label>
+        <input type="text" id="node-input-name" Name>
+    </div>
+    <div class="form-tips">
+        <b>Input</b><br/>
+        <code>msg.topic</code> is not used.<br/>
+        <code>msg.payload</code> is sent to the node.<br/>
+        <br/>
+        <b>Outputs</b><br/>
+        <code>1:</code> Value from node<br/>
+        <code>2:</code> Log Text<br/>
+        <code>3:</code> Online/Offline Status<br/>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('msgbus-v2 io',{
+        category: 'msgbus_v2-input',
+        paletteLabel: 'Bus I/O',
+        defaults: {
+            client: {type:"msgbus-v2-client", required:true},
+            nodename: {value:"", required:true},
+            dataid: {value:"", required:true},
+            wdt: { value: 60, required: true, validate:RED.validators.number() },
+            event: {value:""},
+            name: {value:""}
+        },
+        color:"#d8bfd8",
+        inputs:1,
+        outputs:3,
+        icon: "bridge.png",
+        label: function() {
+            return this.name||"msgbus-v2 io";
+        },
+        labelStyle: function() {
+            return this.name?"node_label_italic":"";
+        }
+    });
+</script>
+
+<script type="text/x-red" data-template-name="msgbus-v2 transform">
+    <div class="form-row">
+        <label for="node-input-intopic"><i class="fa fa-globe"></i> In Topic</span></label>
+        <input type="text" id="node-input-intopic">
+    </div>
+    <div class="form-row">
+        <label for="node-input-outtopic"><i class="fa fa-globe"></i> Out Topic</span></label>
+        <input type="text" id="node-input-outtopic">
+    </div>
+    <div class="form-row">
+        <label for="node-input-invalue"><i class="fa fa-empire"></i> In Value</span></label>
+        <select id="node-input-invalue" style="width:125px !important">
+            <option value="false">false</option>
+            <option value="true">true</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-outvalue"><i class="fa fa-empire"></i> Out Value</span></label>
+        <select id="node-input-outvalue" style="width:125px !important">
+            <option value="false">false</option>
+            <option value="true">true</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-delay"><i class="fa fa-tag"></i> Delay</span></label>
+        <input type="text" id="node-input-delay" -1>
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</span></label>
+        <input type="text" id="node-input-name" Name>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('msgbus-v2 transform',{
+        category: 'msgbus_v2-input',
+        paletteLabel: 'Transform',
+        defaults: {
+            intopic: {value:""},
+            outtopic: {value:""},
+            invalue: {value:"true"},
+            outvalue: {value:"false"},
+            delay: {value:-1},
+            name: {value:""},
+        },
+        color:"#d8bfd8",
+        inputs:1,
+        outputs:1,
+        icon: "bridge.png",
+        label: function() {
+            return this.name||this.topic||"msgbus-v2 transform";
+        },
+        labelStyle: function() {
+            return this.name?"node_label_italic":"";
+        }
+    });
+</script>
+
+<!--
+    Configuration Node
+-->
+<script type="text/x-red" data-template-name="msgbus-v2-client">
+    <div class="form-row">
+        <label for="node-config-input-broker"><i class="fa fa-globe"></i> <span data-i18n="msgbus-v2.label.broker"></span></label>
+        <input type="text" id="node-config-input-broker">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-nodename"><i class="fa fa-tag"></i> <span data-i18n="msgbus-v2.label.nodename"></span></label>
+        <input type="text" id="node-config-input-username" data-i18n="[placeholder]msgbus-v2.placeholder.nodename">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-domain"><i class="fa fa-tag"></i> <span data-i18n="msgbus-v2.label.domain"></span></label>
+        <input type="text" id="node-config-input-domain" data-i18n="[placeholder]msgbus-v2.label.domain">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> <span data-i18n="msgbus-v2.label.name"></span></label>
+        <input type="text" id="node-config-input-name" data-i18n="[placeholder]msgbus-v2.label.name">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="msgbus-v2-client">
+    <p>MQTT Message Bus Client - configuration<p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('msgbus-v2-client', {
+        category: 'config',
+        defaults: {
+            broker: {type:"mqtt-broker", required:true},
+            nodename: {value:"", required:true},
+            domain: {value:"domain", required:true},
+            name: {value:""}
+        },
+        color:"#4286f4",
+        icon: "bridge.png",
+        label: function() {
+            return this.name||"msgbus-v2-client";
+        },
+        labelStyle: function() {
+            return this.name?"node_label_italic":"";
+        },
+        oneditprepare: function () {
+            /**
+            * Fast UUID generator, RFC4122 version 4 compliant.
+            * @author Jeff Ward (jcward.com).
+            * @license MIT license
+            * @link http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/21963136#21963136
+            **/
+            var uuid = {};
+            var lut = []; for (var i=0; i<256; i++) { lut[i] = (i<16?'0':'')+(i).toString(16); }
+            uuid.generate = function() {
+                var d0 = Math.random()*0xffffffff|0;
+                var d1 = Math.random()*0xffffffff|0;
+                var d2 = Math.random()*0xffffffff|0;
+                var d3 = Math.random()*0xffffffff|0;
+                return  lut[d0&0xff]+lut[d0>>8&0xff]+lut[d0>>16&0xff]+lut[d0>>24&0xff]+'-'+
+                        lut[d1&0xff]+lut[d1>>8&0xff]+'-'+lut[d1>>16&0x0f|0x40]+lut[d1>>24&0xff]+'-'+
+                        lut[d2&0x3f|0x80]+lut[d2>>8&0xff]+'-'+lut[d2>>16&0xff]+lut[d2>>24&0xff]+
+                        lut[d3&0xff]+lut[d3>>8&0xff]+lut[d3>>16&0xff]+lut[d3>>24&0xff];
+            }
+
+            if (typeof this.nodename === 'undefined') {
+                console.log("oneditprepare(): undef")
+                this.nodename = uuid.generate()
+                $("#node-config-input-nodename").val(this.nodename);
+            }
+        }        
+    });
+</script>

@@ -1,0 +1,105 @@
+<!--
+  Copyright 2016 Michael Jacobsen / Marius Schmeding.
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+  http://www.apache.org/licenses/LICENSE-2.0
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
+<script type="text/x-red" data-template-name="homekit-lightbulb">
+    <div class="form-row">
+        <label for="node-input-accessory">
+        <i class="fa fa-rocket"></i>
+        Accessory</label>
+        <input id="node-input-accessory">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-name">
+            <i class="fa fa-tag"></i>
+            Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <b>Default values</b>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-brightness"><i class="fa fa-cog"></i> Brightness</label>
+        <input type="text" id="node-input-brightness" placeholder="-1">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-hue"><i class="fa fa-cog"></i> Hue</label>
+        <input type="text" id="node-input-hue" placeholder="-1">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-saturation"><i class="fa fa-cog"></i> Saturation</label>
+        <input type="text" id="node-input-saturation" placeholder="-1">
+    </div>
+
+    <div class="form-tips">
+        <b>Input</b><br/>
+        <code>msg.topic</code> must be one of these:<br/>
+        <i><nbsp>on</i><br/>
+        <i><nbsp>brightness</i><br/>
+        <i><nbsp>hue</i><br/>
+        <i><nbsp>saturation</i><br/>
+        <br/>
+        <b>Outputs</b><br/>
+        <code>1:</code> On<br/>
+        <code>2:</code> Brightness<br/>
+        <code>3:</code> Hue<br/>
+        <code>4:</code> Saturation<br/>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('homekit-lightbulb', {
+        category: 'homekit-function',
+        paletteLabel: 'Lightbulb',
+        defaults: {
+            accessory: {
+                value: "",
+                type: "homekit-accessory",
+                required: true
+            },
+            name: {
+                value: ""
+            },
+            serviceName: {
+                value: "Lightbulb",
+                required: true
+            },
+            brightness: {
+                value: -1,
+                validate: RED.validators.number()
+            },
+            hue: {
+                value: -1,
+                validate: RED.validators.number()
+            },
+            saturation: {
+                value: -1,
+                validate: RED.validators.number()
+            }
+        },
+        inputs: 1,
+        outputs: 4,
+        icon: "homekit.png",
+        color: "#fcc127",
+        label: function() {
+            return this.name || "Lightbulb";
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : ""
+        }
+    })
+</script>
