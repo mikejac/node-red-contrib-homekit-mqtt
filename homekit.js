@@ -1,5 +1,6 @@
 module.exports = function (RED) {
     'use strict'
+
     var API = require('./lib/api.js')(RED)
     var HapNodeJS = require('hap-nodejs')
     var Accessory = HapNodeJS.Accessory
@@ -31,8 +32,6 @@ module.exports = function (RED) {
             return false
         }
 
-        //console.log("accessoryNameUsed(): already exists!")
-
         return true
     }
     //
@@ -41,23 +40,21 @@ module.exports = function (RED) {
         var nameNotExist = AccessoryNames[name] === undefined
 
         if (nameNotExist) {
-            console.log("accessoryRemoveName(): not exists")
+            RED.log.debug("accessoryRemoveName(): not exists; " + name)
         } else if(AccessoryNames[name] == id) {
             delete AccessoryNames[name]
         } else {
-            console.log("accessoryRemoveName(): exists but id mismatch")
+            RED.log.debug("accessoryRemoveName(): exists but id mismatch; " + name)
             delete AccessoryNames[name]
         }
 
         if (Object.keys(AccessoryNames).length == 0) {
-            //console.log("accessoryRemoveName(): no more elements")
+
         }
     }
 
     function HAPAccessoryNode (n) {
       RED.nodes.createNode(this, n)
-
-      RED.log.debug("HAPAccessoryNode(): n = ", n)
 
       // config node properties
       this.name         = n.accessoryName
@@ -70,7 +67,7 @@ module.exports = function (RED) {
       var node   = this
 
       if (accessoryNameUsed(this.name, this.id)) {
-          RED.log.error("HAPAccessoryNode() Accessory name already in use! this.name =", this.name)
+          RED.log.error("HAPAccessoryNode(): accessory name already in use! this.name = " + this.name)
           this.name = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 5)
       }
 
@@ -95,14 +92,22 @@ module.exports = function (RED) {
 
           this.accessory = accessory
       } catch(err) {
-          console.log("HAPAccessoryNode() err = ", err)
+          RED.log.error("HAPAccessoryNode(): err = " + err)
       }
 
-      this.on('close', function () {
-          //console.log("HAPAccessoryNode(): on 'close'")
-          accessoryRemoveName(node.name, node.id)
-          
+      this.on('close', function (removed, done) {
+        accessoryRemoveName(node.name, node.id)
+
+        if (removed) {
+          // this node has been deleted
+          RED.log.debug("HAPAccessoryNode(close): Node has been deleted; " + this.name)
           node.accessory.destroy()
+        } else {
+          // this node is being restarted
+          RED.log.debug("HAPAccessoryNode(close): Node is being restarted; " + this.name)
+        }
+
+        done()
       })
     }
 

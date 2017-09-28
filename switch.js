@@ -28,7 +28,7 @@ module.exports = function (RED) {
     var Characteristic = HapNodeJS.Characteristic
     var uuid           = HapNodeJS.uuid
 
-    function HAPLightbulbNode(config) {
+    function HAPSwitchNode(config) {
         RED.nodes.createNode(this, config)
 
         // MQTT properties
@@ -57,9 +57,6 @@ module.exports = function (RED) {
         // HomeKit properties
         this.name        = config.name
         this.serviceName = config.serviceName
-        this.brightness  = config.brightness
-        this.hue         = config.hue
-        this.saturation  = config.saturation
         this.configNode  = RED.nodes.getNode(config.accessory)
 
         // generate UUID from node id
@@ -80,7 +77,7 @@ module.exports = function (RED) {
 
             node.clientConn.startAliveTimer(node)
         } else {
-            RED.log.error("HAPLightbulbNode(): no clientConn")
+            RED.log.error("HAPSwitchNode(): no clientConn")
         }
 
         // which characteristics are supported?
@@ -101,25 +98,10 @@ module.exports = function (RED) {
         })
 
         //
-        // set defaults
-        //
-        if (node.brightness > -1) {
-            service.setCharacteristic(Characteristic["Brightness"], node.brightness)
-        }
-
-        if (node.hue > -1) {
-            service.setCharacteristic(Characteristic["Hue"], node.hue)
-        }
-
-        if (node.saturation > -1) {
-            service.setCharacteristic(Characteristic["Saturation"], node.saturation)
-        }
-
-        //
         // incoming regular updates from device
         //
         this.clientConn.updateSubscribe(this.nodename, this.dataId, this.qos, function(topic, payload, packet) {
-            RED.log.debug("HAPLightbulbNode(updateSubscribe): payload = " + payload.toString())
+            RED.log.debug("HAPSwitchNode(updateSubscribe): payload = " + payload.toString())
             node.clientConn.startAliveTimer(node)
         }, this.id)
 
@@ -129,7 +111,7 @@ module.exports = function (RED) {
         service.on('characteristic-change', function (info) {
             var key = info.characteristic.displayName.replace(/ /g, '')
             
-            RED.log.debug("HAPLightbulbNode(characteristic-change): key = " + key + ", value = " + info.newValue)
+            RED.log.debug("HAPSwitchNode(characteristic-change): key = " + key + ", value = " + info.newValue)
 
             node.status({fill: 'yellow', shape: 'dot', text: key + ': ' + info.newValue})
             setTimeout(function () { node.status({}) }, 3000)
@@ -166,16 +148,7 @@ module.exports = function (RED) {
             //
             switch (key) {
                 case "On":
-                    RED.log.debug("HAPLightbulbNode(characteristic-change): On")
-                    break
-                case "Brightness":
-                    RED.log.debug("HAPLightbulbNode(characteristic-change): Brightness")
-                    break
-                case "Hue":
-                    RED.log.debug("HAPLightbulbNode(characteristic-change): Hue")
-                    break
-                case "Saturation":
-                    RED.log.debug("HAPLightbulbNode(characteristic-change): Saturation")
+                    RED.log.debug("HAPOutletNode(characteristic-change): On")
                     break
                 default:
                     RED.log.warn("Unknown characteristics '" + key + "'")
@@ -193,7 +166,7 @@ module.exports = function (RED) {
         // RPC replies coming from MQTT
         //
         this.rpcReply = function(reply) {
-            RED.log.debug("HAPLightbulbNode(rpcReply)" + JSON.stringify(reply))
+            RED.log.debug("HAPSwitchNode(rpcReply)" + JSON.stringify(reply))
             node.clientConn.startAliveTimer(node)
         }
 
@@ -201,7 +174,7 @@ module.exports = function (RED) {
         // device online/offline transitions
         //
         this.online = function(status) {
-            RED.log.debug("HAPLightbulbNode(online): " + status)
+            RED.log.debug("HAPSwitchNode(online): " + status)
         }
         
         //
@@ -223,35 +196,11 @@ module.exports = function (RED) {
                 //
                 if (msg.topic.toUpperCase() == "ON") {
                     characteristic = "On"
-                } else if (msg.topic.toUpperCase() == "BRIGHTNESS") {
-                    characteristic = "Brightness"
-                } else if (msg.topic.toUpperCase() == "HUE") {
-                    characteristic = "Hue"
-                } else if (msg.topic.toUpperCase() == "SATURATION") {
-                    characteristic = "Saturation"
                 } else {
                     if (msg.payload.hasOwnProperty('on')) {
-                        RED.log.debug("HAPLightbulbNode(input): on")
+                        RED.log.debug("HAPSwitchNode(input): on")
                         if (service.getCharacteristic(Characteristic["On"]).value != msg.payload.on) {
                             service.setCharacteristic(Characteristic["On"], msg.payload.on)
-                        }
-                    }
-                    if (msg.payload.hasOwnProperty('brightness')) {
-                        RED.log.debug("HAPLightbulbNode(input): brightness")
-                        if (service.getCharacteristic(Characteristic["Brightness"]).value != msg.payload.brightness) {
-                            service.setCharacteristic(Characteristic["Brightness"], msg.payload.brightness)
-                        }
-                    }
-                    if (msg.payload.hasOwnProperty('hue')) {
-                        RED.log.debug("HAPLightbulbNode(input): hue")
-                        if (service.getCharacteristic(Characteristic["Hue"]).value != msg.payload.hue) {
-                            service.setCharacteristic(Characteristic["Hue"], msg.payload.hue)
-                        }
-                    }
-                    if (msg.payload.hasOwnProperty('saturation')) {
-                        RED.log.debug("HAPLightbulbNode(input): saturation")
-                        if (service.getCharacteristic(Characteristic["Saturation"]).value != msg.payload.saturation) {
-                            service.setCharacteristic(Characteristic["Saturation"], msg.payload.saturation)
                         }
                     }
 
@@ -298,6 +247,5 @@ module.exports = function (RED) {
         })
     }
     
-    RED.nodes.registerType('homekit-lightbulb', HAPLightbulbNode)
+    RED.nodes.registerType('homekit-switch', HAPSwitchNode)
 }
-

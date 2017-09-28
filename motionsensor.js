@@ -28,7 +28,7 @@ module.exports = function (RED) {
     var Characteristic = HapNodeJS.Characteristic
     var uuid           = HapNodeJS.uuid
 
-    function HAPLightbulbNode(config) {
+    function HAPMotionSensorNode(config) {
         RED.nodes.createNode(this, config)
 
         // MQTT properties
@@ -57,9 +57,7 @@ module.exports = function (RED) {
         // HomeKit properties
         this.name        = config.name
         this.serviceName = config.serviceName
-        this.brightness  = config.brightness
-        this.hue         = config.hue
-        this.saturation  = config.saturation
+        this.outletinuse = config.outletinuse
         this.configNode  = RED.nodes.getNode(config.accessory)
 
         // generate UUID from node id
@@ -80,7 +78,7 @@ module.exports = function (RED) {
 
             node.clientConn.startAliveTimer(node)
         } else {
-            RED.log.error("HAPLightbulbNode(): no clientConn")
+            RED.log.error("HAPMotionSensorNode(): no clientConn")
         }
 
         // which characteristics are supported?
@@ -103,24 +101,53 @@ module.exports = function (RED) {
         //
         // set defaults
         //
-        if (node.brightness > -1) {
-            service.setCharacteristic(Characteristic["Brightness"], node.brightness)
+        service.setCharacteristic(Characteristic["StatusActive"], node.statusactive)
+        
+        if (node.statusfault > -1) {
+            service.setCharacteristic(Characteristic["StatusFault"], node.statusfault)
         }
 
-        if (node.hue > -1) {
-            service.setCharacteristic(Characteristic["Hue"], node.hue)
+        if (node.statustampered > -1) {
+            service.setCharacteristic(Characteristic["StatusTampered"], node.statustampered)
         }
 
-        if (node.saturation > -1) {
-            service.setCharacteristic(Characteristic["Saturation"], node.saturation)
+        if (node.statuslowbattery > -1) {
+            service.setCharacteristic(Characteristic["StatusLowBattery"], node.statuslowbattery)
         }
 
         //
         // incoming regular updates from device
         //
         this.clientConn.updateSubscribe(this.nodename, this.dataId, this.qos, function(topic, payload, packet) {
-            RED.log.debug("HAPLightbulbNode(updateSubscribe): payload = " + payload.toString())
+            RED.log.debug("HAPMotionSensorNode(updateSubscribe): payload = " + payload.toString())
             node.clientConn.startAliveTimer(node)
+
+            try {
+                var obj = JSON.parse(payload)
+
+                if (obj.hasOwnProperty('motiondetected')) {
+                    service.setCharacteristic(Characteristic["MotionDetected"], obj.motiondetected)
+                    RED.log.debug("HAPMotionSensorNode(updateSubscribe): motiondetected = " + obj.motiondetected)
+                }
+                if (obj.hasOwnProperty('statusactive')) {
+                    service.setCharacteristic(Characteristic["StatusActive"], obj.statusactive)
+                    RED.log.debug("HAPMotionSensorNode(updateSubscribe): statusactive = " + obj.statusactive)
+                }
+                if (obj.hasOwnProperty('statusfault')) {
+                    service.setCharacteristic(Characteristic["StatusFault"], obj.statusfault)
+                    RED.log.debug("HAPMotionSensorNode(updateSubscribe): statusfault = " + obj.statusfault)
+                }
+                if (obj.hasOwnProperty('statustampered')) {
+                    service.setCharacteristic(Characteristic["StatusTampered"], obj.statustampered)
+                    RED.log.debug("HAPMotionSensorNode(updateSubscribe): statustampered = " + obj.statustampered)
+                }
+                if (obj.hasOwnProperty('statuslowbattery')) {
+                    service.setCharacteristic(Characteristic["StatusLowBattery"], obj.statuslowbattery)
+                    RED.log.debug("HAPMotionSensorNode(updateSubscribe): statuslowbattery = " + obj.statuslowbattery)
+                }
+            } catch(err) {
+                RED.log.error("malformed object: " + payload.toString())                
+            }
         }, this.id)
 
         //
@@ -129,12 +156,11 @@ module.exports = function (RED) {
         service.on('characteristic-change', function (info) {
             var key = info.characteristic.displayName.replace(/ /g, '')
             
-            RED.log.debug("HAPLightbulbNode(characteristic-change): key = " + key + ", value = " + info.newValue)
+            RED.log.debug("HAPMotionSensorNode(characteristic-change): key = " + key + ", value = " + info.newValue)
 
             node.status({fill: 'yellow', shape: 'dot', text: key + ': ' + info.newValue})
             setTimeout(function () { node.status({}) }, 3000)
 
-            //var msg = { payload: {}, hap: info}
             var msg = { payload: {}}
             
             msg.manufacturer = node.configNode.manufacturer
@@ -165,26 +191,25 @@ module.exports = function (RED) {
             // send message on the right output
             //
             switch (key) {
-                case "On":
-                    RED.log.debug("HAPLightbulbNode(characteristic-change): On")
+                case "MotionDetected":
+                    RED.log.debug("HAPMotionSensorNode(characteristic-change): MotionDetected")
                     break
-                case "Brightness":
-                    RED.log.debug("HAPLightbulbNode(characteristic-change): Brightness")
+                case "StatusActive":
+                    RED.log.debug("HAPMotionSensorNode(characteristic-change): StatusActive")
                     break
-                case "Hue":
-                    RED.log.debug("HAPLightbulbNode(characteristic-change): Hue")
+                case "StatusFault":
+                    RED.log.debug("HAPMotionSensorNode(characteristic-change): StatusFault")
                     break
-                case "Saturation":
-                    RED.log.debug("HAPLightbulbNode(characteristic-change): Saturation")
+                case "StatusTampered":
+                    RED.log.debug("HAPMotionSensorNode(characteristic-change): StatusTampered")
+                    break
+                case "StatusLowBattery":
+                    RED.log.debug("HAPMotionSensorNode(characteristic-change): StatusLowBattery")
                     break
                 default:
                     RED.log.warn("Unknown characteristics '" + key + "'")
                     return 
             }
-
-            var s = JSON.parse('{"' + key.toLowerCase() + '":' + msg.payload + '}')
-            
-            node.clientConn.rpcPublish(node.nodename, node.rpccnt++, node.dataId, key, s)
 
             node.send([msg, msgLog, null])
         })
@@ -193,7 +218,7 @@ module.exports = function (RED) {
         // RPC replies coming from MQTT
         //
         this.rpcReply = function(reply) {
-            RED.log.debug("HAPLightbulbNode(rpcReply)" + JSON.stringify(reply))
+            RED.log.debug("HAPMotionSensorNode(rpcReply)" + JSON.stringify(reply))
             node.clientConn.startAliveTimer(node)
         }
 
@@ -201,9 +226,13 @@ module.exports = function (RED) {
         // device online/offline transitions
         //
         this.online = function(status) {
-            RED.log.debug("HAPLightbulbNode(online): " + status)
+            RED.log.debug("HAPMotionSensorNode(online): " + status)
+
+            if (status == false) {
+                service.setCharacteristic(Characteristic["StatusFault"], 1)
+            }
         }
-        
+
         //
         // respond to inputs from NodeRED
         //
@@ -221,38 +250,46 @@ module.exports = function (RED) {
                 //
                 // deal with the msg.topic
                 //
-                if (msg.topic.toUpperCase() == "ON") {
-                    characteristic = "On"
-                } else if (msg.topic.toUpperCase() == "BRIGHTNESS") {
-                    characteristic = "Brightness"
-                } else if (msg.topic.toUpperCase() == "HUE") {
-                    characteristic = "Hue"
-                } else if (msg.topic.toUpperCase() == "SATURATION") {
-                    characteristic = "Saturation"
+                if (msg.topic.toUpperCase() == "MOTIONDETECTED") {
+                    characteristic = "MotionDetected"
+                } else if (msg.topic.toUpperCase() == "STATUSACTIVE") {
+                    characteristic = "StatusActive"
+                } else if (msg.topic.toUpperCase() == "STATUSFAULT") {
+                    characteristic = "StatusFault"
+                } else if (msg.topic.toUpperCase() == "STATUSTAMPERED") {
+                    characteristic = "StatusTampered"
+                } else if (msg.topic.toUpperCase() == "STATUSLOWBATTERY") {
+                    characteristic = "StatusLowBattery"
                 } else {
-                    if (msg.payload.hasOwnProperty('on')) {
-                        RED.log.debug("HAPLightbulbNode(input): on")
-                        if (service.getCharacteristic(Characteristic["On"]).value != msg.payload.on) {
-                            service.setCharacteristic(Characteristic["On"], msg.payload.on)
-                        }
+                    if (msg.payload.hasOwnProperty('motiondetected')) {
+                        RED.log.debug("HAPMotionSensorNode(input): motiondetected")
+                        //if (service.getCharacteristic(Characteristic["MotionDetected"]).value != msg.payload.motiondetected) {
+                            service.setCharacteristic(Characteristic["MotionDetected"], msg.payload.motiondetected)
+                        //}
                     }
-                    if (msg.payload.hasOwnProperty('brightness')) {
-                        RED.log.debug("HAPLightbulbNode(input): brightness")
-                        if (service.getCharacteristic(Characteristic["Brightness"]).value != msg.payload.brightness) {
-                            service.setCharacteristic(Characteristic["Brightness"], msg.payload.brightness)
-                        }
+                    if (msg.payload.hasOwnProperty('statusactive')) {
+                        RED.log.debug("HAPMotionSensorNode(input): statusactive")
+                        //if (service.getCharacteristic(Characteristic["StatusActive"]).value != msg.payload.statusactive) {
+                            service.setCharacteristic(Characteristic["StatusActive"], msg.payload.statusactive)
+                        //}
                     }
-                    if (msg.payload.hasOwnProperty('hue')) {
-                        RED.log.debug("HAPLightbulbNode(input): hue")
-                        if (service.getCharacteristic(Characteristic["Hue"]).value != msg.payload.hue) {
-                            service.setCharacteristic(Characteristic["Hue"], msg.payload.hue)
-                        }
+                    if (msg.payload.hasOwnProperty('statusfault')) {
+                        RED.log.debug("HAPMotionSensorNode(input): statusfault")
+                        //if (service.getCharacteristic(Characteristic["StatusFault"]).value != msg.payload.statusfault) {
+                            service.setCharacteristic(Characteristic["StatusFault"], msg.payload.statusfault)
+                        //}
                     }
-                    if (msg.payload.hasOwnProperty('saturation')) {
-                        RED.log.debug("HAPLightbulbNode(input): saturation")
-                        if (service.getCharacteristic(Characteristic["Saturation"]).value != msg.payload.saturation) {
-                            service.setCharacteristic(Characteristic["Saturation"], msg.payload.saturation)
-                        }
+                    if (msg.payload.hasOwnProperty('statustampered')) {
+                        RED.log.debug("HAPMotionSensorNode(input): statustampered")
+                        //if (service.getCharacteristic(Characteristic["StatusTampered"]).value != msg.payload.statustampered) {
+                            service.setCharacteristic(Characteristic["StatusTampered"], msg.payload.statustampered)
+                        //}
+                    }
+                    if (msg.payload.hasOwnProperty('statuslowbattery')) {
+                        RED.log.debug("HAPMotionSensorNode(input): statuslowbattery")
+                        //if (service.getCharacteristic(Characteristic["StatusLowBattery"]).value != msg.payload.statuslowbattery) {
+                            service.setCharacteristic(Characteristic["StatusLowBattery"], msg.payload.statuslowbattery)
+                        //}
                     }
 
                     return
@@ -267,7 +304,7 @@ module.exports = function (RED) {
                     RED.log.warn("Unable to format value")
                     return
                 }
-
+                
                 if (service.getCharacteristic(Characteristic[characteristic]).value != val) {
                     service.setCharacteristic(Characteristic[characteristic], val)
                 }
@@ -283,7 +320,7 @@ module.exports = function (RED) {
 
         this.on('close', function(removed, done) {
             accessory.removeService(node.service)
-
+            
             if (node.clientConn) {
                 node.clientConn.deregister(node, done)
             }
@@ -298,6 +335,5 @@ module.exports = function (RED) {
         })
     }
     
-    RED.nodes.registerType('homekit-lightbulb', HAPLightbulbNode)
+    RED.nodes.registerType('homekit-motionsensor', HAPMotionSensorNode)
 }
-

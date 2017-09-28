@@ -1,17 +1,19 @@
 /**
- * Copyright 2016 Michael Jacobsen / Marius Schmeding.
+ * NodeRED HomeKit MQTT
+ * Copyright (C) 2017 Michael Jacobsen / Marius Schmeding.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  **/
 
 module.exports = function (RED) {
@@ -28,8 +30,31 @@ module.exports = function (RED) {
 
     function HAPOutletNode(config) {
         RED.nodes.createNode(this, config)
+
+        // MQTT properties
+        this.qos        = 0
+        this.retain     = false
+        this.nodename   = config.nodename
+        this.dataId     = config.dataid
+        this.wdt        = -1
+        this.wdtStatus  = -1
+        this.alive      = null
+        this.lastVal    = {}
+        this.rpccnt     = 1
+
+        if (config.wdt > 0) {
+            this.wdt = config.wdt * 1000
+        }
         
-        // service node properties
+        this.client     = config.client
+        this.clientConn = RED.nodes.getNode(this.client)
+
+        if (!this.clientConn) {
+            this.error(RED._("msgbus-v2.errors.missing-config"))
+            return
+        }
+
+        // HomeKit properties
         this.name        = config.name
         this.serviceName = config.serviceName
         this.outletinuse = config.outletinuse
@@ -48,50 +73,17 @@ module.exports = function (RED) {
         // the pinCode should be shown to the user until interaction with iOS client starts
         node.status({fill: 'yellow', shape: 'ring', text: node.configNode.pinCode})
 
-        // emit message when value changes (sent from HomeKit)
-        service.on('characteristic-change', function (info) {
-            var key = info.characteristic.displayName.replace(/ /g, '')
-            
-            node.status({fill: 'yellow', shape: 'dot', text: key + ': ' + info.newValue})
-            setTimeout(function () { node.status({}) }, 3000)
+        if (this.clientConn) {
+            node.clientConn.register(this)
 
-            var msg = { payload: {}, hap: info}
-
-            msg.manufacturer = node.configNode.manufacturer
-            msg.serialno     = node.configNode.serialNo
-            msg.model        = node.configNode.model
-            msg.name         = node.configNode.name
-            msg.format       = info.characteristic.props.format
-            msg.event        = key
-            
-            msg.payload      = HK.FormatValue(info.characteristic.props.format, info.newValue)
-
-            if (msg.payload == null) {
-                node.warn("Unable to format value")
-                return
-            }
-
-            RED.log.debug("HAPOutletSensorNode(): msg.payload =", msg.payload)
-
-            //
-            // send message on the right output
-            //
-            switch (key) {
-                case "On":
-                    node.send([msg, null])
-                    break
-                case "OutletInUse":
-                    node.send([null, msg])
-                    break
-                default:
-                    node.warn("Unknown characteristics '" + characteristics + "'")
-                    return 
-            }
-        })
+            node.clientConn.startAliveTimer(node)
+        } else {
+            RED.log.error("HAPOutletNode(): no clientConn")
+        }
 
         // which characteristics are supported?
         var supported = { read: [], write: []}
-
+        
         var allCharacteristics = service.characteristics.concat(service.optionalCharacteristics)
         
         allCharacteristics.map(function (characteristic, index) {
@@ -111,16 +103,101 @@ module.exports = function (RED) {
         //
         service.setCharacteristic(Characteristic["OutletInUse"], node.outletinuse)
 
-        // respond to inputs
+        //
+        // incoming regular updates from device
+        //
+        this.clientConn.updateSubscribe(this.nodename, this.dataId, this.qos, function(topic, payload, packet) {
+            RED.log.debug("HAPOutletNode(updateSubscribe): payload = " + payload.toString())
+            node.clientConn.startAliveTimer(node)
+        }, this.id)
+
+        //
+        // emit message when value changes (sent from HomeKit)
+        //
+        service.on('characteristic-change', function (info) {
+            var key = info.characteristic.displayName.replace(/ /g, '')
+            
+            RED.log.debug("HAPOutletNode(characteristic-change): key = " + key + ", value = " + info.newValue)
+
+            node.status({fill: 'yellow', shape: 'dot', text: key + ': ' + info.newValue})
+            setTimeout(function () { node.status({}) }, 3000)
+
+            //var msg = { payload: {}, hap: info}
+            var msg = { payload: {}}
+            
+            msg.manufacturer = node.configNode.manufacturer
+            msg.serialno     = node.configNode.serialNo
+            msg.model        = node.configNode.model
+            msg.name         = node.configNode.name
+            msg.format       = info.characteristic.props.format
+            
+            msg.payload      = HK.FormatValue(info.characteristic.props.format, info.newValue)
+            msg.topic        = key
+
+            if (msg.payload == null) {
+                RED.log.warn("Unable to format value")
+                return
+            }
+
+            if (msg.format == Characteristic.Formats.INT) {
+                msg.format = "uint8"
+            }
+
+            var l = node.clientConn.timeNowString()
+            var msgLog = {
+                topic:   "log",
+                payload: l + " > " + node.nodename + ", " + node.dataId + ": " + key + " = " + msg.payload
+            }
+
+            //
+            // send message on the right output
+            //
+            switch (key) {
+                case "On":
+                    RED.log.debug("HAPOutletNode(characteristic-change): On")
+                    break
+                case "OutletInUse":
+                    RED.log.debug("HAPOutletNode(characteristic-change): OutletInUse")
+                    break
+                default:
+                    RED.log.warn("Unknown characteristics '" + key + "'")
+                    return 
+            }
+
+            var s = JSON.parse('{"' + key.toLowerCase() + '":' + msg.payload + '}')
+            
+            node.clientConn.rpcPublish(node.nodename, node.rpccnt++, node.dataId, key, s)
+
+            node.send([msg, msgLog, null])
+        })
+
+        //
+        // RPC replies coming from MQTT
+        //
+        this.rpcReply = function(reply) {
+            RED.log.debug("HAPOutletNode(rpcReply)" + JSON.stringify(reply))
+            node.clientConn.startAliveTimer(node)
+        }
+
+        //
+        // device online/offline transitions
+        //
+        this.online = function(status) {
+            RED.log.debug("HAPOutletNode(online): " + status)
+        }
+        
+        //
+        // respond to inputs from NodeRED
+        //
         this.on('input', function (msg) {
             var characteristic
             var val
 
             if (!msg.hasOwnProperty('topic')) {
-                node.warn('Invalid message (topic missing)')
+                RED.log.warn('Invalid message (topic missing)')
                 return
             } else if (!msg.hasOwnProperty('payload')) {
-                node.warn('Invalid message (payload missing)')
+                RED.log.warn('Invalid message (payload missing)')
                 return
             } else {
                 //
@@ -131,7 +208,19 @@ module.exports = function (RED) {
                 } else if (msg.topic.toUpperCase() == "OUTLETINUSE") {
                     characteristic = "OutletInUse"
                 } else {
-                    node.warn('Invalid topic')
+                    if (msg.payload.hasOwnProperty('on')) {
+                        RED.log.debug("HAPOutletNode(input): on")
+                        if (service.getCharacteristic(Characteristic["On"]).value != msg.payload.on) {
+                            service.setCharacteristic(Characteristic["On"], msg.payload.on)
+                        }
+                    }
+                    if (msg.payload.hasOwnProperty('outletinuse')) {
+                        RED.log.debug("HAPOutletNode(input): outletinuse")
+                        if (service.getCharacteristic(Characteristic["OutletInUse"]).value != msg.payload.outletinuse) {
+                            service.setCharacteristic(Characteristic["OutletInUse"], msg.payload.outletinuse)
+                        }
+                    }
+
                     return
                 }
 
@@ -141,21 +230,37 @@ module.exports = function (RED) {
                 val = HK.FormatValue(service.getCharacteristic(Characteristic[characteristic]).props.format, msg.payload)
 
                 if (val == null) {
-                    node.warn("Unable to format value")
+                    RED.log.warn("Unable to format value")
                     return
+                }
+
+                if (service.getCharacteristic(Characteristic[characteristic]).value != val) {
+                    service.setCharacteristic(Characteristic[characteristic], val)
                 }
             }
 
             if (supported.write.indexOf(characteristic) < 0) {
-                node.warn("Characteristic " + characteristic + " cannot be written to")
+                RED.log.warn("Characteristic " + characteristic + " cannot be written to")
             } else {
                 // send to HomeKit
                 service.setCharacteristic(Characteristic[characteristic], val)
             }
         })
 
-        this.on('close', function () {
-            accessory.removeService(service)
+        this.on('close', function(removed, done) {
+            accessory.removeService(node.service)
+
+            if (node.clientConn) {
+                node.clientConn.deregister(node, done)
+            }
+
+            if (removed) {
+                // This node has been deleted
+            } else {
+                // This node is being restarted
+            }
+            
+            done()
         })
     }
     

@@ -16,7 +16,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 
-<script type="text/x-red" data-template-name="homekit-lightbulb">
+<script type="text/x-red" data-template-name="homekit-motionsensor">
     <div class="form-row">
         <b>MQTT Settings</b>
     </div>
@@ -62,27 +62,45 @@
     </div>
 
     <div class="form-row">
-        <label for="node-input-brightness"><i class="fa fa-cog"></i> Brightness</label>
-        <input type="text" id="node-input-brightness" placeholder="-1">
+        <label for="node-config-input-statusactive" style="width: auto"><i class="fa fa-cog"></i> Active</label>
+        <input type="checkbox" id="node-config-input-statusactive" style="display: inline-block; width: auto; vertical-align: top;">
     </div>
 
     <div class="form-row">
-        <label for="node-input-hue"><i class="fa fa-cog"></i> Hue</label>
-        <input type="text" id="node-input-hue" placeholder="-1">
+        <label for="node-input-statusfault"><i class="fa fa-cog"></i> Status Fault</span></label>
+        <select id="node-input-statusfault">
+            <option value="-1">Do not set default value (-1)</option>
+            <option value="0">No Fault (0)</option>
+            <option value="1">General Fault (1)</option>
+        </select>
     </div>
 
     <div class="form-row">
-        <label for="node-input-saturation"><i class="fa fa-cog"></i> Saturation</label>
-        <input type="text" id="node-input-saturation" placeholder="-1">
+        <label for="node-input-statustampered"><i class="fa fa-cog"></i> Status Tampered</span></label>
+        <select id="node-input-statustampered">
+            <option value="-1">Do not set default value (-1)</option>
+            <option value="0">Not Tampered (0)</option>
+            <option value="1">Tampered (1)</option>
+        </select>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-statuslowbattery"><i class="fa fa-cog"></i> Status Battery</span></label>
+        <select id="node-input-statuslowbattery">
+            <option value="-1">Do not set default value (-1)</option>
+            <option value="0">Battery Level Normal (0)</option>
+            <option value="1">Battery Level Low (1)</option>
+        </select>
     </div>
 
     <div class="form-tips">
         <b>Input</b><br/>
         <code>msg.topic</code> must be one of these:<br/>
-        <i><nbsp>on</i><br/>
-        <i><nbsp>brightness</i><br/>
-        <i><nbsp>hue</i><br/>
-        <i><nbsp>saturation</i><br/>
+        <i><nbsp>motiondetected</i> (Bool)<br/>
+        <i><nbsp>statusactive</i> (Bool)<br/>
+        <i><nbsp>statusfault</i> (UInt8)<br/>
+        <i><nbsp>statustampered</i> (UInt8)<br/>
+        <i><nbsp>statuslowbattery</i> (UInt8)<br/>
         <br/>
         <b>Outputs</b><br/>
         <code>1:</code> Transactions<br/>
@@ -92,9 +110,9 @@
 </script>
 
 <script type="text/javascript">
-    RED.nodes.registerType('homekit-lightbulb', {
+    RED.nodes.registerType('homekit-motionsensor', {
         category: 'homekit_mqtt-function',
-        paletteLabel: 'Lightbulb',
+        paletteLabel: 'MotionSensor',
         defaults: {
             client: {
                 type: "homekit-mqtt-client", 
@@ -122,20 +140,20 @@
                 value: ""
             },
             serviceName: {
-                value: "Lightbulb",
+                value: "MotionSensor",
                 required: true
             },
-            brightness: {
-                value: -1,
-                validate: RED.validators.number()
+            statusactive: {
+                value: true
             },
-            hue: {
-                value: -1,
-                validate: RED.validators.number()
+            statusfault: {
+                value: -1
             },
-            saturation: {
-                value: -1,
-                validate: RED.validators.number()
+            statustampered: {
+                value: -1
+            },
+            statuslowbattery: {
+                value: -1
             }
         },
         inputs: 1,
@@ -143,10 +161,18 @@
         icon: "homekit.png",
         color: "#fcc127",
         label: function() {
-            return this.name || "Lightbulb";
+            return this.name || "MotionSensor";
         },
         labelStyle: function() {
             return this.name ? "node_label_italic" : ""
+        },
+        oneditprepare: function () {
+            if (typeof this.statusactive === 'undefined') {
+                this.statusactive = true
+            }
+
+            $("#node-config-input-statusactive").prop("checked", this.statusactive)
         }
     })
 </script>
+

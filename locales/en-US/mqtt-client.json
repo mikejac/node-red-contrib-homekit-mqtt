@@ -1,5 +1,5 @@
 {
-    "msgbus-v2": {
+    "mqtt-client": {
         "label": {
             "broker": "Server",
             "nodename": "Nodename",
