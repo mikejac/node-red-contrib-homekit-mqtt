@@ -28,7 +28,7 @@ module.exports = function (RED) {
     var Characteristic = HapNodeJS.Characteristic
     var uuid           = HapNodeJS.uuid
 
-    function HAPSwitchNode(config) {
+    function HAPLightSensorNode(config) {
         RED.nodes.createNode(this, config)
 
         // MQTT properties
@@ -57,6 +57,7 @@ module.exports = function (RED) {
         // HomeKit properties
         this.name        = config.name
         this.serviceName = config.serviceName
+        this.outletinuse = config.outletinuse
         this.configNode  = RED.nodes.getNode(config.accessory)
 
         // generate UUID from node id
@@ -77,7 +78,7 @@ module.exports = function (RED) {
 
             node.clientConn.startAliveTimer(node)
         } else {
-            RED.log.error("HAPSwitchNode(): no clientConn")
+            RED.log.error("HAPLightSensorNode(): no clientConn")
         }
 
         // which characteristics are supported?
@@ -98,17 +99,51 @@ module.exports = function (RED) {
         })
 
         //
+        // set defaults
+        //
+        service.setCharacteristic(Characteristic["StatusActive"], node.statusactive)
+        
+        if (node.statusfault > -1) {
+            service.setCharacteristic(Characteristic["StatusFault"], node.statusfault)
+        }
+
+        if (node.statustampered > -1) {
+            service.setCharacteristic(Characteristic["StatusTampered"], node.statustampered)
+        }
+
+        if (node.statuslowbattery > -1) {
+            service.setCharacteristic(Characteristic["StatusLowBattery"], node.statuslowbattery)
+        }
+
+        //
         // incoming regular updates from device
         //
         this.clientConn.updateSubscribe(this.nodename, this.dataId, this.qos, function(topic, payload, packet) {
-            RED.log.debug("HAPSwitchNode(updateSubscribe): payload = " + payload.toString())
+            RED.log.debug("HAPLightSensorNode(updateSubscribe): payload = " + payload.toString())
             node.clientConn.startAliveTimer(node)
+
             try {
                 var obj = JSON.parse(payload)
 
-                if (obj.hasOwnProperty('on')) {
-                    service.setCharacteristic(Characteristic["On"], obj.on)
-                    RED.log.debug("HAPSwitchNode(updateSubscribe): on = " + obj.on)
+                if (obj.hasOwnProperty('currentambientlightlevel')) {
+                    service.setCharacteristic(Characteristic["CurrentAmbientLightLevel"], obj.currentambientlightlevel)
+                    RED.log.debug("HAPLightSensorNode(updateSubscribe): currentambientlightlevel = " + obj.currentambientlightlevel)
+                }
+                if (obj.hasOwnProperty('statusactive')) {
+                    service.setCharacteristic(Characteristic["StatusActive"], obj.statusactive)
+                    RED.log.debug("HAPLightnSensorNode(updateSubscribe): statusactive = " + obj.statusactive)
+                }
+                if (obj.hasOwnProperty('statusfault')) {
+                    service.setCharacteristic(Characteristic["StatusFault"], obj.statusfault)
+                    RED.log.debug("HAPLightSensorNode(updateSubscribe): statusfault = " + obj.statusfault)
+                }
+                if (obj.hasOwnProperty('statustampered')) {
+                    service.setCharacteristic(Characteristic["StatusTampered"], obj.statustampered)
+                    RED.log.debug("HAPLightSensorNode(updateSubscribe): statustampered = " + obj.statustampered)
+                }
+                if (obj.hasOwnProperty('statuslowbattery')) {
+                    service.setCharacteristic(Characteristic["StatusLowBattery"], obj.statuslowbattery)
+                    RED.log.debug("HAPLightSensorNode(updateSubscribe): statuslowbattery = " + obj.statuslowbattery)
                 }
             } catch(err) {
                 RED.log.error("malformed object: " + payload.toString())                
@@ -121,7 +156,7 @@ module.exports = function (RED) {
         service.on('characteristic-change', function (info) {
             var key = info.characteristic.displayName.replace(/ /g, '')
             
-            RED.log.debug("HAPSwitchNode(characteristic-change): key = " + key + ", value = " + info.newValue)
+            RED.log.debug("HAPLightSensorNode(characteristic-change): key = " + key + ", value = " + info.newValue)
 
             node.status({fill: 'yellow', shape: 'dot', text: key + ': ' + info.newValue})
             setTimeout(function () { node.status({}) }, 3000)
@@ -152,16 +187,29 @@ module.exports = function (RED) {
                 payload: l + " > " + node.nodename + ", " + node.dataId + ": " + key + " = " + msg.payload
             }
 
+            //
+            // send message on the right output
+            //
             switch (key) {
-                case "On":
-                    RED.log.debug("HAPOutletNode(characteristic-change): On")
+                case "CurrentAmbientLightLevel":
+                    RED.log.debug("HAPLightSensorNode(characteristic-change): CurrentAmbientLightLevel")
+                    break
+                case "StatusActive":
+                    RED.log.debug("HAPLightSensorNode(characteristic-change): StatusActive")
+                    break
+                case "StatusFault":
+                    RED.log.debug("HAPLightSensorNode(characteristic-change): StatusFault")
+                    break
+                case "StatusTampered":
+                    RED.log.debug("HAPLightSensorNode(characteristic-change): StatusTampered")
+                    break
+                case "StatusLowBattery":
+                    RED.log.debug("HAPLightSensorNode(characteristic-change): StatusLowBattery")
                     break
                 default:
                     RED.log.warn("Unknown characteristics '" + key + "'")
                     return 
             }
-
-            node.publishAll()
 
             node.send([msg, msgLog, null])
         })
@@ -170,7 +218,7 @@ module.exports = function (RED) {
         // RPC replies coming from MQTT
         //
         this.rpcReply = function(reply) {
-            RED.log.debug("HAPSwitchNode(rpcReply)" + JSON.stringify(reply))
+            RED.log.debug("HAPLightSensorNode(rpcReply)" + JSON.stringify(reply))
             node.clientConn.startAliveTimer(node)
         }
 
@@ -178,19 +226,11 @@ module.exports = function (RED) {
         // device online/offline transitions
         //
         this.online = function(status) {
-            RED.log.debug("HAPSwitchNode(online): " + status)
+            RED.log.debug("HAPLightSensorNode(online): " + status)
 
-            if (status) {
-                node.publishAll()
+            if (status == false) {
+                service.setCharacteristic(Characteristic["StatusFault"], 1)
             }
-        }
-        
-        this.publishAll = function() {
-            var d = {
-                on: service.getCharacteristic(Characteristic["On"]).value
-            }
-
-            node.clientConn.rpcPublish(node.nodename, node.rpccnt++, node.dataId, "All", d)
         }
 
         //
@@ -210,12 +250,36 @@ module.exports = function (RED) {
                 //
                 // deal with the msg.topic
                 //
-                if (msg.topic.toUpperCase() == "ON") {
-                    characteristic = "On"
+                if (msg.topic.toUpperCase() == "CURRENTAMBIENTLIGHTLEVEL") {
+                    characteristic = "CurrentAmbientLightLevel"
+                } else if (msg.topic.toUpperCase() == "STATUSACTIVE") {
+                    characteristic = "StatusActive"
+                } else if (msg.topic.toUpperCase() == "STATUSFAULT") {
+                    characteristic = "StatusFault"
+                } else if (msg.topic.toUpperCase() == "STATUSTAMPERED") {
+                    characteristic = "StatusTampered"
+                } else if (msg.topic.toUpperCase() == "STATUSLOWBATTERY") {
+                    characteristic = "StatusLowBattery"
                 } else {
-                    if (msg.payload.hasOwnProperty('on')) {
-                        RED.log.debug("HAPSwitchNode(input): on")
-                        service.setCharacteristic(Characteristic["On"], msg.payload.on)
+                    if (msg.payload.hasOwnProperty('currentambientlightlevel')) {
+                        RED.log.debug("HAPLightSensorNode(input): currentambientlightlevel")
+                        service.setCharacteristic(Characteristic["CurrentAmbientLightLevel"], msg.payload.currentambientlightlevel)
+                    }
+                    if (msg.payload.hasOwnProperty('statusactive')) {
+                        RED.log.debug("HAPLightSensorNode(input): statusactive")
+                        service.setCharacteristic(Characteristic["StatusActive"], msg.payload.statusactive)
+                    }
+                    if (msg.payload.hasOwnProperty('statusfault')) {
+                        RED.log.debug("HAPLightSensorNode(input): statusfault")
+                        service.setCharacteristic(Characteristic["StatusFault"], msg.payload.statusfault)
+                    }
+                    if (msg.payload.hasOwnProperty('statustampered')) {
+                        RED.log.debug("HAPLightSensorNode(input): statustampered")
+                        service.setCharacteristic(Characteristic["StatusTampered"], msg.payload.statustampered)
+                    }
+                    if (msg.payload.hasOwnProperty('statuslowbattery')) {
+                        RED.log.debug("HAPLightSensorNode(input): statuslowbattery")
+                        service.setCharacteristic(Characteristic["StatusLowBattery"], msg.payload.statuslowbattery)
                     }
 
                     return
@@ -244,7 +308,7 @@ module.exports = function (RED) {
 
         this.on('close', function(removed, done) {
             accessory.removeService(node.service)
-
+            
             if (node.clientConn) {
                 node.clientConn.deregister(node, done)
             }
@@ -259,5 +323,5 @@ module.exports = function (RED) {
         })
     }
     
-    RED.nodes.registerType('homekit-switch-v2', HAPSwitchNode)
+    RED.nodes.registerType('homekit-lightsensor-v2', HAPLightSensorNode)
 }

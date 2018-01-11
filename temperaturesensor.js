@@ -28,7 +28,7 @@ module.exports = function (RED) {
     var Characteristic = HapNodeJS.Characteristic
     var uuid           = HapNodeJS.uuid
 
-    function HAPSwitchNode(config) {
+    function HAPTemperatureSensorNode(config) {
         RED.nodes.createNode(this, config)
 
         // MQTT properties
@@ -57,6 +57,7 @@ module.exports = function (RED) {
         // HomeKit properties
         this.name        = config.name
         this.serviceName = config.serviceName
+        this.outletinuse = config.outletinuse
         this.configNode  = RED.nodes.getNode(config.accessory)
 
         // generate UUID from node id
@@ -77,7 +78,7 @@ module.exports = function (RED) {
 
             node.clientConn.startAliveTimer(node)
         } else {
-            RED.log.error("HAPSwitchNode(): no clientConn")
+            RED.log.error("HAPTemperatureSensorNode(): no clientConn")
         }
 
         // which characteristics are supported?
@@ -98,17 +99,51 @@ module.exports = function (RED) {
         })
 
         //
+        // set defaults
+        //
+        service.setCharacteristic(Characteristic["StatusActive"], node.statusactive)
+        
+        if (node.statusfault > -1) {
+            service.setCharacteristic(Characteristic["StatusFault"], node.statusfault)
+        }
+
+        if (node.statustampered > -1) {
+            service.setCharacteristic(Characteristic["StatusTampered"], node.statustampered)
+        }
+
+        if (node.statuslowbattery > -1) {
+            service.setCharacteristic(Characteristic["StatusLowBattery"], node.statuslowbattery)
+        }
+
+        //
         // incoming regular updates from device
         //
         this.clientConn.updateSubscribe(this.nodename, this.dataId, this.qos, function(topic, payload, packet) {
-            RED.log.debug("HAPSwitchNode(updateSubscribe): payload = " + payload.toString())
+            RED.log.debug("HAPTemperatureSensorNode(updateSubscribe): payload = " + payload.toString())
             node.clientConn.startAliveTimer(node)
+
             try {
                 var obj = JSON.parse(payload)
 
-                if (obj.hasOwnProperty('on')) {
-                    service.setCharacteristic(Characteristic["On"], obj.on)
-                    RED.log.debug("HAPSwitchNode(updateSubscribe): on = " + obj.on)
+                if (obj.hasOwnProperty('currenttemperature')) {
+                    service.setCharacteristic(Characteristic["CurrentTemperature"], obj.currenttemperature)
+                    RED.log.debug("HAPTemperatureSensorNode(updateSubscribe): currenttemperature = " + obj.currenttemperature)
+                }
+                if (obj.hasOwnProperty('statusactive')) {
+                    service.setCharacteristic(Characteristic["StatusActive"], obj.statusactive)
+                    RED.log.debug("HAPTemperatureSensorNode(updateSubscribe): statusactive = " + obj.statusactive)
+                }
+                if (obj.hasOwnProperty('statusfault')) {
+                    service.setCharacteristic(Characteristic["StatusFault"], obj.statusfault)
+                    RED.log.debug("HAPTemperatureSensorNode(updateSubscribe): statusfault = " + obj.statusfault)
+                }
+                if (obj.hasOwnProperty('statustampered')) {
+                    service.setCharacteristic(Characteristic["StatusTampered"], obj.statustampered)
+                    RED.log.debug("HAPTemperatureSensorNode(updateSubscribe): statustampered = " + obj.statustampered)
+                }
+                if (obj.hasOwnProperty('statuslowbattery')) {
+                    service.setCharacteristic(Characteristic["StatusLowBattery"], obj.statuslowbattery)
+                    RED.log.debug("HAPTemperatureSensorNode(updateSubscribe): statuslowbattery = " + obj.statuslowbattery)
                 }
             } catch(err) {
                 RED.log.error("malformed object: " + payload.toString())                
@@ -121,7 +156,7 @@ module.exports = function (RED) {
         service.on('characteristic-change', function (info) {
             var key = info.characteristic.displayName.replace(/ /g, '')
             
-            RED.log.debug("HAPSwitchNode(characteristic-change): key = " + key + ", value = " + info.newValue)
+            RED.log.debug("HAPTemperatureSensorNode(characteristic-change): key = " + key + ", value = " + info.newValue)
 
             node.status({fill: 'yellow', shape: 'dot', text: key + ': ' + info.newValue})
             setTimeout(function () { node.status({}) }, 3000)
@@ -152,16 +187,29 @@ module.exports = function (RED) {
                 payload: l + " > " + node.nodename + ", " + node.dataId + ": " + key + " = " + msg.payload
             }
 
+            //
+            // send message on the right output
+            //
             switch (key) {
-                case "On":
-                    RED.log.debug("HAPOutletNode(characteristic-change): On")
+                case "CurrentTemperature":
+                    RED.log.debug("HAPTemperatureSensorNode(characteristic-change): CurrentTemperature")
+                    break
+                case "StatusActive":
+                    RED.log.debug("HAPTemperatureSensorNode(characteristic-change): StatusActive")
+                    break
+                case "StatusFault":
+                    RED.log.debug("HAPTemperatureSensorNode(characteristic-change): StatusFault")
+                    break
+                case "StatusTampered":
+                    RED.log.debug("HAPTemperatureSensorNode(characteristic-change): StatusTampered")
+                    break
+                case "StatusLowBattery":
+                    RED.log.debug("HAPTemperatureSensorNode(characteristic-change): StatusLowBattery")
                     break
                 default:
                     RED.log.warn("Unknown characteristics '" + key + "'")
                     return 
             }
-
-            node.publishAll()
 
             node.send([msg, msgLog, null])
         })
@@ -170,7 +218,7 @@ module.exports = function (RED) {
         // RPC replies coming from MQTT
         //
         this.rpcReply = function(reply) {
-            RED.log.debug("HAPSwitchNode(rpcReply)" + JSON.stringify(reply))
+            RED.log.debug("HAPTemperatureSensorNode(rpcReply)" + JSON.stringify(reply))
             node.clientConn.startAliveTimer(node)
         }
 
@@ -178,19 +226,11 @@ module.exports = function (RED) {
         // device online/offline transitions
         //
         this.online = function(status) {
-            RED.log.debug("HAPSwitchNode(online): " + status)
+            RED.log.debug("HAPTemperatureSensorNode(online): " + status)
 
-            if (status) {
-                node.publishAll()
+            if (status == false) {
+                service.setCharacteristic(Characteristic["StatusFault"], 1)
             }
-        }
-        
-        this.publishAll = function() {
-            var d = {
-                on: service.getCharacteristic(Characteristic["On"]).value
-            }
-
-            node.clientConn.rpcPublish(node.nodename, node.rpccnt++, node.dataId, "All", d)
         }
 
         //
@@ -210,12 +250,36 @@ module.exports = function (RED) {
                 //
                 // deal with the msg.topic
                 //
-                if (msg.topic.toUpperCase() == "ON") {
-                    characteristic = "On"
+                if (msg.topic.toUpperCase() == "CURRENTTEMPERATURE") {
+                    characteristic = "CurrentTemperature"
+                } else if (msg.topic.toUpperCase() == "STATUSACTIVE") {
+                    characteristic = "StatusActive"
+                } else if (msg.topic.toUpperCase() == "STATUSFAULT") {
+                    characteristic = "StatusFault"
+                } else if (msg.topic.toUpperCase() == "STATUSTAMPERED") {
+                    characteristic = "StatusTampered"
+                } else if (msg.topic.toUpperCase() == "STATUSLOWBATTERY") {
+                    characteristic = "StatusLowBattery"
                 } else {
-                    if (msg.payload.hasOwnProperty('on')) {
-                        RED.log.debug("HAPSwitchNode(input): on")
-                        service.setCharacteristic(Characteristic["On"], msg.payload.on)
+                    if (msg.payload.hasOwnProperty('currenttemperature')) {
+                        RED.log.debug("HAPTemperatureSensorNode(input): currenttemperature")
+                        service.setCharacteristic(Characteristic["CurrentTemperature"], msg.payload.currenttemperature)
+                    }
+                    if (msg.payload.hasOwnProperty('statusactive')) {
+                        RED.log.debug("HAPTemperatureSensorNode(input): statusactive")
+                        service.setCharacteristic(Characteristic["StatusActive"], msg.payload.statusactive)
+                    }
+                    if (msg.payload.hasOwnProperty('statusfault')) {
+                        RED.log.debug("HAPTemperatureSensorNode(input): statusfault")
+                        service.setCharacteristic(Characteristic["StatusFault"], msg.payload.statusfault)
+                    }
+                    if (msg.payload.hasOwnProperty('statustampered')) {
+                        RED.log.debug("HAPTemperatureSensorNode(input): statustampered")
+                        service.setCharacteristic(Characteristic["StatusTampered"], msg.payload.statustampered)
+                    }
+                    if (msg.payload.hasOwnProperty('statuslowbattery')) {
+                        RED.log.debug("HAPTemperatureSensorNode(input): statuslowbattery")
+                        service.setCharacteristic(Characteristic["StatusLowBattery"], msg.payload.statuslowbattery)
                     }
 
                     return
@@ -244,7 +308,7 @@ module.exports = function (RED) {
 
         this.on('close', function(removed, done) {
             accessory.removeService(node.service)
-
+            
             if (node.clientConn) {
                 node.clientConn.deregister(node, done)
             }
@@ -259,5 +323,5 @@ module.exports = function (RED) {
         })
     }
     
-    RED.nodes.registerType('homekit-switch-v2', HAPSwitchNode)
+    RED.nodes.registerType('homekit-temperaturesensor-v2', HAPTemperatureSensorNode)
 }

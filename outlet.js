@@ -109,6 +109,21 @@ module.exports = function (RED) {
         this.clientConn.updateSubscribe(this.nodename, this.dataId, this.qos, function(topic, payload, packet) {
             RED.log.debug("HAPOutletNode(updateSubscribe): payload = " + payload.toString())
             node.clientConn.startAliveTimer(node)
+
+            try {
+                var obj = JSON.parse(payload)
+
+                if (obj.hasOwnProperty('on')) {
+                    service.setCharacteristic(Characteristic["On"], obj.on)
+                    RED.log.debug("HAPOutletNode(updateSubscribe): on = " + obj.on)
+                }
+                if (obj.hasOwnProperty('outletinuse')) {
+                    service.setCharacteristic(Characteristic["OutletInUse"], obj.outletinuse)
+                    RED.log.debug("HAPOutletNode(updateSubscribe): outletinuse = " + obj.outletinuse)
+                }
+            } catch(err) {
+                RED.log.error("malformed object: " + payload.toString())                
+            }
         }, this.id)
 
         //
@@ -122,7 +137,6 @@ module.exports = function (RED) {
             node.status({fill: 'yellow', shape: 'dot', text: key + ': ' + info.newValue})
             setTimeout(function () { node.status({}) }, 3000)
 
-            //var msg = { payload: {}, hap: info}
             var msg = { payload: {}}
             
             msg.manufacturer = node.configNode.manufacturer
@@ -149,9 +163,6 @@ module.exports = function (RED) {
                 payload: l + " > " + node.nodename + ", " + node.dataId + ": " + key + " = " + msg.payload
             }
 
-            //
-            // send message on the right output
-            //
             switch (key) {
                 case "On":
                     RED.log.debug("HAPOutletNode(characteristic-change): On")
@@ -164,9 +175,7 @@ module.exports = function (RED) {
                     return 
             }
 
-            var s = JSON.parse('{"' + key.toLowerCase() + '":' + msg.payload + '}')
-            
-            node.clientConn.rpcPublish(node.nodename, node.rpccnt++, node.dataId, key, s)
+            node.publishAll()
 
             node.send([msg, msgLog, null])
         })
@@ -184,8 +193,21 @@ module.exports = function (RED) {
         //
         this.online = function(status) {
             RED.log.debug("HAPOutletNode(online): " + status)
+
+            if (status) {
+                node.publishAll()
+            }
         }
         
+        this.publishAll = function() {
+            var d = {
+                on:             service.getCharacteristic(Characteristic["On"]).value,
+                outletinuse:    service.getCharacteristic(Characteristic["OutletInUse"]).value
+            }
+
+            node.clientConn.rpcPublish(node.nodename, node.rpccnt++, node.dataId, "All", d)
+        }
+
         //
         // respond to inputs from NodeRED
         //
@@ -210,15 +232,11 @@ module.exports = function (RED) {
                 } else {
                     if (msg.payload.hasOwnProperty('on')) {
                         RED.log.debug("HAPOutletNode(input): on")
-                        if (service.getCharacteristic(Characteristic["On"]).value != msg.payload.on) {
-                            service.setCharacteristic(Characteristic["On"], msg.payload.on)
-                        }
+                        service.setCharacteristic(Characteristic["On"], msg.payload.on)
                     }
                     if (msg.payload.hasOwnProperty('outletinuse')) {
                         RED.log.debug("HAPOutletNode(input): outletinuse")
-                        if (service.getCharacteristic(Characteristic["OutletInUse"]).value != msg.payload.outletinuse) {
-                            service.setCharacteristic(Characteristic["OutletInUse"], msg.payload.outletinuse)
-                        }
+                        service.setCharacteristic(Characteristic["OutletInUse"], msg.payload.outletinuse)
                     }
 
                     return
@@ -233,17 +251,15 @@ module.exports = function (RED) {
                     RED.log.warn("Unable to format value")
                     return
                 }
-
-                if (service.getCharacteristic(Characteristic[characteristic]).value != val) {
-                    service.setCharacteristic(Characteristic[characteristic], val)
-                }
             }
 
             if (supported.write.indexOf(characteristic) < 0) {
                 RED.log.warn("Characteristic " + characteristic + " cannot be written to")
             } else {
                 // send to HomeKit
-                service.setCharacteristic(Characteristic[characteristic], val)
+                if (service.getCharacteristic(Characteristic[characteristic]).value != val) {
+                    service.setCharacteristic(Characteristic[characteristic], val)
+                }
             }
         })
 
@@ -264,5 +280,5 @@ module.exports = function (RED) {
         })
     }
     
-    RED.nodes.registerType('homekit-outlet', HAPOutletNode)
+    RED.nodes.registerType('homekit-outlet-v2', HAPOutletNode)
 }

@@ -22,13 +22,55 @@ module.exports = function (RED) {
     var API            = require('./lib/api.js')(RED)
     var HapNodeJS      = require('hap-nodejs')
     var HK             = require('./lib/common_functions.js')
+    var inherits       = require('util').inherits;
 
     var Accessory      = HapNodeJS.Accessory
     var Service        = HapNodeJS.Service
     var Characteristic = HapNodeJS.Characteristic
     var uuid           = HapNodeJS.uuid
 
+    var TYPE = {
+        ON:         1,
+        BRIGHTNESS: 2,
+        ALL:        3
+    }
+
     function HAPLightbulbNode(config) {
+        //
+        // Lightbulb with only 'On' characteristic
+        //
+        this.myLightbulb1 = function(displayName, subtype) {
+            Service.call(this, displayName, '00000043-0000-1000-8000-0026BB765291', subtype);
+
+            // Required Characteristics
+            this.addCharacteristic(Characteristic.On);
+
+            // Optional Characteristics
+            this.addOptionalCharacteristic(Characteristic.Name);
+        };
+
+        inherits(this.myLightbulb1, Service);
+
+        this.myLightbulb1.UUID = '00000043-0000-1000-8000-0026BB765291';
+
+        //
+        // Lightbulb with only 'On' and 'Brightness' characteristics
+        //
+        this.myLightbulb2 = function(displayName, subtype) {
+            Service.call(this, displayName, '00000043-0000-1000-8000-0026BB765291', subtype);
+
+            // Required Characteristics
+            this.addCharacteristic(Characteristic.On);
+
+            // Optional Characteristics
+            this.addOptionalCharacteristic(Characteristic.Brightness);
+            this.addOptionalCharacteristic(Characteristic.Name);
+        };
+
+        inherits(this.myLightbulb2, Service);
+
+        this.myLightbulb2.UUID = '00000043-0000-1000-8000-0026BB765291';
+
         RED.nodes.createNode(this, config)
 
         // MQTT properties
@@ -56,7 +98,7 @@ module.exports = function (RED) {
 
         // HomeKit properties
         this.name        = config.name
-        this.serviceName = config.serviceName
+        this.serviceName = config.serviceName   // 'Lightbulb'
         this.brightness  = config.brightness
         this.hue         = config.hue
         this.saturation  = config.saturation
@@ -65,13 +107,32 @@ module.exports = function (RED) {
         // generate UUID from node id
         var subtypeUUID = uuid.generate(this.id)
 
+        //console.log("service; ", Service[this.serviceName])
         // add service
         var accessory = this.configNode.accessory
-        var service   = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
+        //var service   = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
+        //var service   = accessory.addService(this.myLightbulb1, this.name, subtypeUUID)
 
-        this.service = service
+        //this.service = service
         var node     = this
 
+        if (node.hue > -1 || node.saturation > -1) {
+            // lightbulb with all characteristics
+            var service  = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
+            node.service = service
+            node.type    = TYPE.ALL
+        } else if (node.brightness > -1) {
+            // lightbulb with brightness characteristics
+            var service  = accessory.addService(this.myLightbulb2, this.name, subtypeUUID)
+            node.service = service
+            node.type    = TYPE.BRIGHTNESS
+        } else {
+            // lightbulb with only 'On' characteristic
+            var service  = accessory.addService(this.myLightbulb1, this.name, subtypeUUID)
+            node.service = service
+            node.type    = TYPE.ON
+        }
+        
         // the pinCode should be shown to the user until interaction with iOS client starts
         node.status({fill: 'yellow', shape: 'ring', text: node.configNode.pinCode})
 
@@ -103,17 +164,36 @@ module.exports = function (RED) {
         //
         // set defaults
         //
-        if (node.brightness > -1) {
-            service.setCharacteristic(Characteristic["Brightness"], node.brightness)
+        switch (node.type) {
+            case TYPE.BRIGHTNESS:
+                RED.log.debug("HALightbulbNode(): setting default brightness")
+                node.service.setCharacteristic(Characteristic["Brightness"], node.brightness)
+                break
+
+            case TYPE.ALL:
+                RED.log.debug("HALightbulbNode(): setting default brightness")
+                node.service.setCharacteristic(Characteristic["Brightness"], node.brightness)
+                RED.log.debug("HALightbulbNode(): setting default hue")
+                node.service.setCharacteristic(Characteristic["Hue"], node.hue)
+                RED.log.debug("HALightbulbNode(): setting default saturation")
+                node.service.setCharacteristic(Characteristic["Saturation"], node.saturation)
+                break
+        }
+
+        /*if (node.brightness > -1) {
+            RED.log.debug("HALightbulbNode(): setting default brightness")
+            node.service.setCharacteristic(Characteristic["Brightness"], node.brightness)
         }
 
         if (node.hue > -1) {
-            service.setCharacteristic(Characteristic["Hue"], node.hue)
+            RED.log.debug("HALightbulbNode(): setting default hue")
+            node.service.setCharacteristic(Characteristic["Hue"], node.hue)
         }
 
         if (node.saturation > -1) {
-            service.setCharacteristic(Characteristic["Saturation"], node.saturation)
-        }
+            RED.log.debug("HALightbulbNode(): setting default saturation")
+            node.service.setCharacteristic(Characteristic["Saturation"], node.saturation)
+        }*/
 
         //
         // incoming regular updates from device
@@ -121,6 +201,17 @@ module.exports = function (RED) {
         this.clientConn.updateSubscribe(this.nodename, this.dataId, this.qos, function(topic, payload, packet) {
             RED.log.debug("HAPLightbulbNode(updateSubscribe): payload = " + payload.toString())
             node.clientConn.startAliveTimer(node)
+
+            try {
+                var obj = JSON.parse(payload)
+
+                if (obj.hasOwnProperty('on')) {
+                    node.service.setCharacteristic(Characteristic["On"], obj.on)
+                    RED.log.debug("HALightbulbNode(updateSubscribe): on = " + obj.on)
+                }
+            } catch(err) {
+                RED.log.error("malformed object: " + payload.toString())                
+            }
         }, this.id)
 
         //
@@ -161,9 +252,6 @@ module.exports = function (RED) {
                 payload: l + " > " + node.nodename + ", " + node.dataId + ": " + key + " = " + msg.payload
             }
 
-            //
-            // send message on the right output
-            //
             switch (key) {
                 case "On":
                     RED.log.debug("HAPLightbulbNode(characteristic-change): On")
@@ -182,9 +270,7 @@ module.exports = function (RED) {
                     return 
             }
 
-            var s = JSON.parse('{"' + key.toLowerCase() + '":' + msg.payload + '}')
-            
-            node.clientConn.rpcPublish(node.nodename, node.rpccnt++, node.dataId, key, s)
+            node.publishAll()
 
             node.send([msg, msgLog, null])
         })
@@ -202,8 +288,42 @@ module.exports = function (RED) {
         //
         this.online = function(status) {
             RED.log.debug("HAPLightbulbNode(online): " + status)
+
+            if (status) {
+                node.publishAll()
+            }
         }
         
+        this.publishAll = function() {
+            var d = {}
+
+            switch (node.type) {
+                case TYPE.ON:
+                    var d = {
+                        on:         service.getCharacteristic(Characteristic["On"]).value,
+                    }
+                    break
+
+                case TYPE.BRIGHTNESS:
+                    var d = {
+                        on:         service.getCharacteristic(Characteristic["On"]).value,
+                        brightness: service.getCharacteristic(Characteristic["Brightness"]).value
+                    }
+                    break
+    
+                case TYPE.ALL:
+                    var d = {
+                        on:         service.getCharacteristic(Characteristic["On"]).value,
+                        hue:        service.getCharacteristic(Characteristic["Hue"]).value,
+                        saturation: service.getCharacteristic(Characteristic["Saturation"]).value,
+                        brightness: service.getCharacteristic(Characteristic["Brightness"]).value
+                    }
+                    break
+            }
+
+            node.clientConn.rpcPublish(node.nodename, node.rpccnt++, node.dataId, "All", d)
+        }
+
         //
         // respond to inputs from NodeRED
         //
@@ -232,27 +352,19 @@ module.exports = function (RED) {
                 } else {
                     if (msg.payload.hasOwnProperty('on')) {
                         RED.log.debug("HAPLightbulbNode(input): on")
-                        if (service.getCharacteristic(Characteristic["On"]).value != msg.payload.on) {
-                            service.setCharacteristic(Characteristic["On"], msg.payload.on)
-                        }
+                        node.service.setCharacteristic(Characteristic["On"], msg.payload.on)
                     }
                     if (msg.payload.hasOwnProperty('brightness')) {
                         RED.log.debug("HAPLightbulbNode(input): brightness")
-                        if (service.getCharacteristic(Characteristic["Brightness"]).value != msg.payload.brightness) {
-                            service.setCharacteristic(Characteristic["Brightness"], msg.payload.brightness)
-                        }
+                        node.service.setCharacteristic(Characteristic["Brightness"], msg.payload.brightness)
                     }
                     if (msg.payload.hasOwnProperty('hue')) {
                         RED.log.debug("HAPLightbulbNode(input): hue")
-                        if (service.getCharacteristic(Characteristic["Hue"]).value != msg.payload.hue) {
-                            service.setCharacteristic(Characteristic["Hue"], msg.payload.hue)
-                        }
+                        node.service.setCharacteristic(Characteristic["Hue"], msg.payload.hue)
                     }
                     if (msg.payload.hasOwnProperty('saturation')) {
                         RED.log.debug("HAPLightbulbNode(input): saturation")
-                        if (service.getCharacteristic(Characteristic["Saturation"]).value != msg.payload.saturation) {
-                            service.setCharacteristic(Characteristic["Saturation"], msg.payload.saturation)
-                        }
+                        node.service.setCharacteristic(Characteristic["Saturation"], msg.payload.saturation)
                     }
 
                     return
@@ -267,22 +379,20 @@ module.exports = function (RED) {
                     RED.log.warn("Unable to format value")
                     return
                 }
-
-                if (service.getCharacteristic(Characteristic[characteristic]).value != val) {
-                    service.setCharacteristic(Characteristic[characteristic], val)
-                }
             }
 
             if (supported.write.indexOf(characteristic) < 0) {
                 RED.log.warn("Characteristic " + characteristic + " cannot be written to")
             } else {
                 // send to HomeKit
-                service.setCharacteristic(Characteristic[characteristic], val)
+                if (service.getCharacteristic(Characteristic[characteristic]).value != val) {
+                    node.service.setCharacteristic(Characteristic[characteristic], val)
+                }
             }
         })
 
         this.on('close', function(removed, done) {
-            accessory.removeService(node.service)
+            node.accessory.removeService(node.service)
 
             if (node.clientConn) {
                 node.clientConn.deregister(node, done)
@@ -298,6 +408,6 @@ module.exports = function (RED) {
         })
     }
     
-    RED.nodes.registerType('homekit-lightbulb', HAPLightbulbNode)
+    RED.nodes.registerType('homekit-lightbulb-v2', HAPLightbulbNode)
 }
 

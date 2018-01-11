@@ -263,33 +263,23 @@ module.exports = function (RED) {
                 } else {
                     if (msg.payload.hasOwnProperty('motiondetected')) {
                         RED.log.debug("HAPMotionSensorNode(input): motiondetected")
-                        //if (service.getCharacteristic(Characteristic["MotionDetected"]).value != msg.payload.motiondetected) {
-                            service.setCharacteristic(Characteristic["MotionDetected"], msg.payload.motiondetected)
-                        //}
+                        service.setCharacteristic(Characteristic["MotionDetected"], msg.payload.motiondetected)
                     }
                     if (msg.payload.hasOwnProperty('statusactive')) {
                         RED.log.debug("HAPMotionSensorNode(input): statusactive")
-                        //if (service.getCharacteristic(Characteristic["StatusActive"]).value != msg.payload.statusactive) {
-                            service.setCharacteristic(Characteristic["StatusActive"], msg.payload.statusactive)
-                        //}
+                        service.setCharacteristic(Characteristic["StatusActive"], msg.payload.statusactive)
                     }
                     if (msg.payload.hasOwnProperty('statusfault')) {
                         RED.log.debug("HAPMotionSensorNode(input): statusfault")
-                        //if (service.getCharacteristic(Characteristic["StatusFault"]).value != msg.payload.statusfault) {
-                            service.setCharacteristic(Characteristic["StatusFault"], msg.payload.statusfault)
-                        //}
+                        service.setCharacteristic(Characteristic["StatusFault"], msg.payload.statusfault)
                     }
                     if (msg.payload.hasOwnProperty('statustampered')) {
                         RED.log.debug("HAPMotionSensorNode(input): statustampered")
-                        //if (service.getCharacteristic(Characteristic["StatusTampered"]).value != msg.payload.statustampered) {
-                            service.setCharacteristic(Characteristic["StatusTampered"], msg.payload.statustampered)
-                        //}
+                        service.setCharacteristic(Characteristic["StatusTampered"], msg.payload.statustampered)
                     }
                     if (msg.payload.hasOwnProperty('statuslowbattery')) {
                         RED.log.debug("HAPMotionSensorNode(input): statuslowbattery")
-                        //if (service.getCharacteristic(Characteristic["StatusLowBattery"]).value != msg.payload.statuslowbattery) {
-                            service.setCharacteristic(Characteristic["StatusLowBattery"], msg.payload.statuslowbattery)
-                        //}
+                        service.setCharacteristic(Characteristic["StatusLowBattery"], msg.payload.statuslowbattery)
                     }
 
                     return
@@ -304,17 +294,15 @@ module.exports = function (RED) {
                     RED.log.warn("Unable to format value")
                     return
                 }
-                
-                if (service.getCharacteristic(Characteristic[characteristic]).value != val) {
-                    service.setCharacteristic(Characteristic[characteristic], val)
-                }
             }
 
             if (supported.write.indexOf(characteristic) < 0) {
                 RED.log.warn("Characteristic " + characteristic + " cannot be written to")
             } else {
                 // send to HomeKit
-                service.setCharacteristic(Characteristic[characteristic], val)
+                if (service.getCharacteristic(Characteristic[characteristic]).value != val) {
+                    service.setCharacteristic(Characteristic[characteristic], val)
+                }
             }
         })
 
@@ -335,5 +323,5 @@ module.exports = function (RED) {
         })
     }
     
-    RED.nodes.registerType('homekit-motionsensor', HAPMotionSensorNode)
+    RED.nodes.registerType('homekit-motionsensor-v2', HAPMotionSensorNode)
 }

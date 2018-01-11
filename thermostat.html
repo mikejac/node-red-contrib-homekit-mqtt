@@ -16,7 +16,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 
-<script type="text/x-red" data-template-name="homekit-motionsensor-v2">
+<script type="text/x-red" data-template-name="homekit-thermostat-v2">
     <div class="form-row">
         <b>MQTT Settings</b>
     </div>
@@ -62,45 +62,47 @@
     </div>
 
     <div class="form-row">
-        <label for="node-config-input-statusactive" style="width: auto"><i class="fa fa-cog"></i> Active</label>
-        <input type="checkbox" id="node-config-input-statusactive" style="display: inline-block; width: auto; vertical-align: top;">
+        <label for="node-input-targettemperature"><i class="fa fa-cog"></i> TargetTemperature</label>
+        <input type="text" id="node-input-targettemperature" placeholder="-1">
     </div>
 
     <div class="form-row">
-        <label for="node-input-statusfault"><i class="fa fa-cog"></i> Status Fault</span></label>
-        <select id="node-input-statusfault">
+        <label for="node-input-targetheatingcoolingstate"><i class="fa fa-cog"></i> TargetHeatingCoolingState</span></label>
+        <select id="node-input-targetheatingcoolingstate">
             <option value="-1">Do not set default value (-1)</option>
-            <option value="0">No Fault (0)</option>
-            <option value="1">General Fault (1)</option>
+            <option value="0">Off (0)</option>
+            <option value="1">Heat (1)</option>
+            <option value="2">Cool (2)</option>
+            <option value="3">Auto (3)</option>
         </select>
     </div>
 
     <div class="form-row">
-        <label for="node-input-statustampered"><i class="fa fa-cog"></i> Status Tampered</span></label>
-        <select id="node-input-statustampered">
-            <option value="-1">Do not set default value (-1)</option>
-            <option value="0">Not Tampered (0)</option>
-            <option value="1">Tampered (1)</option>
-        </select>
+        <label for="node-input-coolingthresholdtemperature"><i class="fa fa-cog"></i> CoolingThresholdTemperature</label>
+        <input type="text" id="node-input-coolingthresholdtemperature" placeholder="-1">
     </div>
 
     <div class="form-row">
-        <label for="node-input-statuslowbattery"><i class="fa fa-cog"></i> Status Battery</span></label>
-        <select id="node-input-statuslowbattery">
-            <option value="-1">Do not set default value (-1)</option>
-            <option value="0">Battery Level Normal (0)</option>
-            <option value="1">Battery Level Low (1)</option>
-        </select>
+        <label for="node-input-heatingthresholdtemperature"><i class="fa fa-cog"></i> HeatingThresholdTemperature</label>
+        <input type="text" id="node-input-heatingthresholdtemperature" placeholder="-1">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-targetrelativehumidity"><i class="fa fa-cog"></i> TargetRelativeHumidity</label>
+        <input type="text" id="node-input-targetrelativehumidity" placeholder="-1">
     </div>
 
     <div class="form-tips">
         <b>Input</b><br/>
         <code>msg.topic</code> must be one of these:<br/>
-        <i><nbsp>motiondetected</i> (Bool)<br/>
-        <i><nbsp>statusactive</i> (Bool)<br/>
-        <i><nbsp>statusfault</i> (UInt8)<br/>
-        <i><nbsp>statustampered</i> (UInt8)<br/>
-        <i><nbsp>statuslowbattery</i> (UInt8)<br/>
+        <i><nbsp>currentheatingcoolingstate</i> (UInt8)<br/>
+        <i><nbsp>targetheatingcoolingstate</i> (UInt8)<br/>
+        <i><nbsp>currenttemperature</i> (Float)<br/>
+        <i><nbsp>targettemperature</i> (Float)<br/>
+        <i><nbsp>currentrelativehumidity</i> (Float)<br/>
+        <i><nbsp>targetrelativehumidity</i> (Float)<br/>
+        <i><nbsp>coolingthresholdtemperature</i> (Float)<br/>
+        <i><nbsp>heatingthresholdtemperature</i> (Float)<br/>
         <br/>
         <b>Outputs</b><br/>
         <code>1:</code> Transactions<br/>
@@ -110,9 +112,9 @@
 </script>
 
 <script type="text/javascript">
-    RED.nodes.registerType('homekit-motionsensor-v2', {
+    RED.nodes.registerType('homekit-thermostat-v2', {
         category: 'homekit_mqtt-function',
-        paletteLabel: 'MotionSensor',
+        paletteLabel: 'Thermostat',
         defaults: {
             client: {
                 type: "homekit-mqtt-client", 
@@ -123,7 +125,7 @@
                 required: true
             },
             dataid: {
-                value: "MotionSensor.", 
+                value: "Thermostat.", 
                 required: true
             },
             wdt: {
@@ -140,19 +142,22 @@
                 value: ""
             },
             serviceName: {
-                value: "MotionSensor",
+                value: "Thermostat",
                 required: true
             },
-            statusactive: {
-                value: true
-            },
-            statusfault: {
+            targettemperature: {
                 value: -1
             },
-            statustampered: {
+            targetheatingcoolingstate: {
                 value: -1
             },
-            statuslowbattery: {
+            coolingthresholdtemperature: {
+                value: -1
+            },
+            heatingthresholdtemperature: {
+                value: -1
+            },
+            targetrelativehumidity: {
                 value: -1
             }
         },
@@ -161,17 +166,10 @@
         icon: "homekit.png",
         color: "#fcc127",
         label: function() {
-            return this.name || "MotionSensor";
+            return this.name || "Thermostat";
         },
         labelStyle: function() {
             return this.name ? "node_label_italic" : ""
-        },
-        oneditprepare: function () {
-            if (typeof this.statusactive === 'undefined') {
-                this.statusactive = true
-            }
-
-            $("#node-config-input-statusactive").prop("checked", this.statusactive)
         }
     })
 </script>

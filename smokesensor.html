@@ -16,7 +16,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 
-<script type="text/x-red" data-template-name="homekit-motionsensor-v2">
+<script type="text/x-red" data-template-name="homekit-smokesensor-v2">
     <div class="form-row">
         <b>MQTT Settings</b>
     </div>
@@ -96,7 +96,7 @@
     <div class="form-tips">
         <b>Input</b><br/>
         <code>msg.topic</code> must be one of these:<br/>
-        <i><nbsp>motiondetected</i> (Bool)<br/>
+        <i><nbsp>smokedetected</i> (Bool)<br/>
         <i><nbsp>statusactive</i> (Bool)<br/>
         <i><nbsp>statusfault</i> (UInt8)<br/>
         <i><nbsp>statustampered</i> (UInt8)<br/>
@@ -110,9 +110,9 @@
 </script>
 
 <script type="text/javascript">
-    RED.nodes.registerType('homekit-motionsensor-v2', {
+    RED.nodes.registerType('homekit-smokesensor-v2', {
         category: 'homekit_mqtt-function',
-        paletteLabel: 'MotionSensor',
+        paletteLabel: 'SmokeSensor',
         defaults: {
             client: {
                 type: "homekit-mqtt-client", 
@@ -123,7 +123,7 @@
                 required: true
             },
             dataid: {
-                value: "MotionSensor.", 
+                value: "SmokeSensor.", 
                 required: true
             },
             wdt: {
@@ -140,7 +140,7 @@
                 value: ""
             },
             serviceName: {
-                value: "MotionSensor",
+                value: "SmokeSensor",
                 required: true
             },
             statusactive: {
@@ -161,7 +161,7 @@
         icon: "homekit.png",
         color: "#fcc127",
         label: function() {
-            return this.name || "MotionSensor";
+            return this.name || "SmokeSensor";
         },
         labelStyle: function() {
             return this.name ? "node_label_italic" : ""

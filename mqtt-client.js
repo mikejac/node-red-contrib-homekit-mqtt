@@ -32,6 +32,9 @@ module.exports = function(RED) {
     var msgbusUpdate                = "Update"
     var msgbusWrite                 = "Write"
     var msgbusRead                  = "Read"
+    var msgbusDebug                 = "Debug"
+    var msgbusInfo                  = "Info"
+    var msgbusSysInfo               = "SysInfo"
     var msgbusRPC                   = "rpc"
 
     //
@@ -41,6 +44,33 @@ module.exports = function(RED) {
                 msgbusDestBroadcast + "/" +                     // destination
                 nodename + "/" +                                // source
                 dataid + "." + msgbusUpdate                     // data id
+    }
+
+    //
+    function topicDebugSubscribe(domain, nodename) {
+        return  domain + "/" +
+                msgbusSelf + "/" + msgbusVersion + "/" +
+                msgbusDestBroadcast + "/" +                     // destination
+                nodename + "/" +                                // source
+                msgbusDebug
+    }
+
+    //
+    function topicInfoSubscribe(domain, nodename) {
+        return  domain + "/" +
+                msgbusSelf + "/" + msgbusVersion + "/" +
+                msgbusDestBroadcast + "/" +                     // destination
+                nodename + "/" +                                // source
+                msgbusInfo
+    }
+
+    //
+    function topicSysInfoSubscribe(domain, nodename) {
+        return  domain + "/" +
+                msgbusSelf + "/" + msgbusVersion + "/" +
+                msgbusDestBroadcast + "/" +                     // destination
+                nodename + "/" +                                // source
+                msgbusSysInfo
     }
 
     //
@@ -117,7 +147,8 @@ module.exports = function(RED) {
                         }
                     }
                 } catch (err) {
-                    RED.log.error("malformed object: " + payload.toString())
+                    RED.log.error("HomeKitMQTTClientNode(): malformed object; " + payload.toString())
+                    //RED.log.error("HomeKitMQTTClientNode(): malformed object; err = " + err.message)
                 }
             }, node.id)
         }
@@ -150,13 +181,22 @@ module.exports = function(RED) {
             node.brokerConn.subscribe(topic, qos, callback, ref)
         }
 
+        /*this.updateSubscribeX = function(nodename, dataId, qos, callback, ref) {
+            RED.log.debug("HomeKitMQTTClientNode(): updateSubscribe")
+
+            var topic = topicUpdateSubscribeX(node.domain, nodename, dataId)
+
+            node.brokerConn.subscribe(topic, qos, callback, ref)
+        }*/
+
         this.rpcPublish = function (nodename, id, dataId, event, payload) {
             RED.log.debug("HomeKitMQTTClientNode(): rpcPublish")
 
             var d = {
                 "src": node.nodename + "_" + nodename + "_" + dataId,
                 "id": id,
-                "method": dataId + "." + event + "." + msgbusWrite,
+                "method": dataId + "." + msgbusWrite,
+                //"method": dataId + "." + event + "." + msgbusWrite,
                 "args": payload
             }
 
@@ -171,6 +211,8 @@ module.exports = function(RED) {
                 "retain":   node.retain
             }
         
+            RED.log.debug("HomeKitMQTTClientNode(): rpcPublish; payload = " + JSON.stringify(msg))
+
             node.brokerConn.publish(msg)
         }
 
@@ -203,14 +245,14 @@ module.exports = function(RED) {
             }
     
             if (node.alive == null) {
-                RED.log.debug("startAliveTimer(): first time; " + node.nodename)
+                RED.log.debug("HomeKitMQTTClientNode::startAliveTimer(): first time; " + node.nodename)
                 node.alive = setTimeout(aliveTimerExpired, node.wdt + 5000, node)
             } else {
-                RED.log.debug("startAliveTimer(): not first time; " + node.nodename)
+                RED.log.debug("HomeKitMQTTClientNode::startAliveTimer(): not first time; " + node.nodename)
                 clearTimeout(node.alive)
                 node.alive = setTimeout(aliveTimerExpired, node.wdt + 5000, node)
     
-                RED.log.debug("startAliveTimer(): node.wdtStatus = " + node.wdtStatus)
+                RED.log.debug("HomeKitMQTTClientNode::startAliveTimer(): node.wdtStatus = " + node.wdtStatus)
     
                 if (node.wdtStatus != 1) {
                     node.wdtStatus = 1
@@ -235,7 +277,7 @@ module.exports = function(RED) {
     //
     //
     function aliveTimerExpired(node) {
-        RED.log.debug("aliveTimerExpired(): " + node.nodename)
+        RED.log.debug("HomeKitMQTTClient::aliveTimerExpired(): " + node.nodename)
 
         /*
         node.wdtStatus:
@@ -244,7 +286,7 @@ module.exports = function(RED) {
         1  = Connected
         */
 
-        RED.log.debug("aliveTimerExpired(): node.wdtStatus = " + node.wdtStatus)
+        RED.log.debug("HomeKitMQTTClient::aliveTimerExpired(): node.wdtStatus = " + node.wdtStatus)
         
         if (node.wdtStatus != 0) {
             node.wdtStatus = 0
@@ -336,13 +378,18 @@ module.exports = function(RED) {
                 }
 
                 //RED.log.debug("HAPRawNode(updateSubscribe): msgLog = " + JSON.stringify(msgLog))
-                
-                var msg = {
-                    topic: dataId,
-                    payload: JSON.parse(payload)
-                }
 
-                node.send([msg, msgLog, null])
+                try {
+                    var msg = {
+                        topic: dataId,
+                        payload: JSON.parse(payload)
+                    }
+
+                    node.send([msg, msgLog, null])
+                } catch (err) {
+                    RED.log.error("HAPRawNode(updateSubscribe): malformed object; " + payload.toString())
+                    //RED.log.error("HAPRawNode(updateSubscribe): malformed object; err = " + err.message)
+                }
             }
         }, this.id)
 
@@ -352,6 +399,8 @@ module.exports = function(RED) {
         this.rpcReply = function(reply) {
             RED.log.debug("HAPRawNode(rpcReply)" + JSON.stringify(reply))
             node.clientConn.startAliveTimer(node)
+
+            var topic = node.dataId + ".RpcReply"
 
             var l = node.clientConn.timeNowString()
             var msgLog = {

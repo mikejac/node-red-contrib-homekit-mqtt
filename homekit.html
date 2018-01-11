@@ -1,5 +1,5 @@
 
-<script type="text/x-red" data-template-name="homekit-accessory">
+<script type="text/x-red" data-template-name="homekit-accessory-v2">
     <div class="form-row">
         <label for="node-config-input-pinCode"><i class="fa fa-lock"></i> Pin Code</label>
         <input type="text" id="node-config-input-pinCode" placeholder="xxx-xx-xxx">
@@ -26,7 +26,7 @@
     </div>
 </script>
 
-<script type="text/x-red" data-help-name="homekit-accessory">
+<script type="text/x-red" data-help-name="homekit-accessory-v2">
 <h3 id="toc_4">Accessory</h3>
 <p>The Accessory node is a configuration node, specifying the <em>device</em> that iOS sees. </p>
 <ul>
@@ -39,7 +39,7 @@
 </script>
 
 <script type="text/javascript">
-    RED.nodes.registerType('homekit-accessory', {
+    RED.nodes.registerType('homekit-accessory-v2', {
         category: 'config',
         defaults: {
             accessoryName: {

@@ -16,7 +16,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 
-<script type="text/x-red" data-template-name="homekit-outlet">
+<script type="text/x-red" data-template-name="homekit-outlet-v2">
     <div class="form-row">
         <b>MQTT Settings</b>
     </div>
@@ -80,7 +80,7 @@
 </script>
 
 <script type="text/javascript">
-    RED.nodes.registerType('homekit-outlet', {
+    RED.nodes.registerType('homekit-outlet-v2', {
         category: 'homekit_mqtt-function',
         paletteLabel: 'Outlet',
         defaults: {
@@ -93,17 +93,17 @@
                 required: true
             },
             dataid: {
-                value: "", 
+                value: "Outlet.", 
                 required: true
             },
             wdt: {
-                value: 60,
+                value: 65,
                 required: true,
                 validate:RED.validators.number()
             },
             accessory: {
                 value: "",
-                type: "homekit-accessory",
+                type: "homekit-accessory-v2",
                 required: true
             },
             name: {
