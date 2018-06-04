@@ -43,7 +43,7 @@ module.exports = function (RED) {
         this.rpccnt     = 1
 
         if (config.wdt > 0) {
-            this.wdt = config.wdt * 1000
+            this.wdt = (config.wdt + 5) * 1000
         }
         
         this.client     = config.client
@@ -65,9 +65,18 @@ module.exports = function (RED) {
 
         // add service
         var accessory = this.configNode.accessory
-        var service   = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
+        var service   = null
+        
+        try {
+            // this might fail if node is being restarted (!)
+            service = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
+        } catch(err) {
+            RED.log.debug("HAPOutletNode(): service already exists")
+            service = accessory.getService(subtypeUUID)
+        }
 
         this.service = service
+        this.service = null
         var node     = this
 
         // the pinCode should be shown to the user until interaction with iOS client starts
@@ -101,14 +110,15 @@ module.exports = function (RED) {
         //
         // set defaults
         //
-        service.setCharacteristic(Characteristic["OutletInUse"], node.outletinuse)
+        //service.setCharacteristic(Characteristic["OutletInUse"], node.outletinuse)
 
         //
         // incoming regular updates from device
         //
         this.clientConn.updateSubscribe(this.nodename, this.dataId, this.qos, function(topic, payload, packet) {
-            RED.log.debug("HAPOutletNode(updateSubscribe): payload = " + payload.toString())
-            node.clientConn.startAliveTimer(node)
+            RED.log.debug("HAPOutletNode(updateSubscribe): nodename = " + node.nodename + 
+                            ", dataId = " + node.dataId +
+                            ", payload = " + payload.toString())
 
             try {
                 var obj = JSON.parse(payload)
@@ -124,6 +134,8 @@ module.exports = function (RED) {
             } catch(err) {
                 RED.log.error("malformed object: " + payload.toString())                
             }
+
+            node.clientConn.startAliveTimer(node)
         }, this.id)
 
         //
@@ -195,11 +207,16 @@ module.exports = function (RED) {
             RED.log.debug("HAPOutletNode(online): " + status)
 
             if (status) {
-                node.publishAll()
+                //node.publishAll()
             }
         }
         
         this.publishAll = function() {
+            if (node.wdtStatus != 1) {
+                RED.log.debug("HAPOutletNode(publishAll): not online")
+                return
+            }
+
             var d = {
                 on:             service.getCharacteristic(Characteristic["On"]).value,
                 outletinuse:    service.getCharacteristic(Characteristic["OutletInUse"]).value

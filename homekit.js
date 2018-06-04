@@ -113,7 +113,7 @@ module.exports = function (RED) {
 
     RED.nodes.registerType('homekit-accessory-v2', HAPAccessoryNode)
 
-  function HAPServiceNode (n) {
+  /*function HAPServiceNode (n) {
     RED.nodes.createNode(this, n)
 
     try {
@@ -191,8 +191,8 @@ module.exports = function (RED) {
     } catch(err) {
       console.log("HAPServiceNode() err = ", err)
     }
-  }
-  RED.nodes.registerType('homekit-service-v2', HAPServiceNode)
+  }*/
+  //RED.nodes.registerType('homekit-service-v2', HAPServiceNode)
 }
 
 function pad (str, length) {

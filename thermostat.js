@@ -64,7 +64,15 @@ module.exports = function (RED) {
 
         // add service
         var accessory = this.configNode.accessory
-        var service   = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
+        var service   = null
+        
+        try {
+            // this might fail if node is being restarted (!)
+            service = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
+        } catch(err) {
+            RED.log.debug("HAPThermostatNode(): service already exists")
+            service = accessory.getService(subtypeUUID)
+        }
 
         this.service = service
         var node     = this
@@ -125,7 +133,6 @@ module.exports = function (RED) {
         //
         this.clientConn.updateSubscribe(this.nodename, this.dataId, this.qos, function(topic, payload, packet) {
             RED.log.debug("HAPThermostatNode(updateSubscribe): payload = " + payload.toString())
-            node.clientConn.startAliveTimer(node)
 
             try {
                 var obj = JSON.parse(payload)
@@ -165,6 +172,8 @@ module.exports = function (RED) {
             } catch(err) {
                 RED.log.error("malformed object: " + payload.toString())                
             }
+
+            node.clientConn.startAliveTimer(node)
         }, this.id)
 
         //
@@ -204,24 +213,29 @@ module.exports = function (RED) {
                 payload: l + " > " + node.nodename + ", " + node.dataId + ": " + key + " = " + msg.payload
             }
 
+            var shouldSend = true
+
             switch (key) {
                 case "TargetHeatingCoolingState":
                     RED.log.debug("HAPThermostatNode(characteristic-change): TargetHeatingCoolingState")
                     break
                 case "CurrentHeatingCoolingState":
                     RED.log.debug("HAPThermostatNode(characteristic-change): CurrentHeatingCoolingState - not sending")
+                    shouldSend = false
                     break
                 case "TargetTemperature":
                     RED.log.debug("HAPThermostatNode(characteristic-change): TargetTemperature")
                     break
                 case "CurrentTemperature":
                     RED.log.debug("HAPThermostatNode(characteristic-change): CurrentTemperature - not sending")
+                    shouldSend = false
                     break
                 case "TargetRelativeHumidity":
                     RED.log.debug("HAPThermostatNode(characteristic-change): TargetRelativeHumidity")
                     break
                 case "CurrentRelativeHumidity":
                     RED.log.debug("HAPThermostatNode(characteristic-change): CurrentRelativeHumidity - not sending")
+                    shouldSend = false
                     break
                 case "CoolingThresholdTemperature":
                     RED.log.debug("HAPThermostatNode(characteristic-change): CoolingThresholdTemperature")
@@ -234,7 +248,9 @@ module.exports = function (RED) {
                     return 
             }
 
-            node.publishAll()
+            if (shouldSend) {
+                node.publishAll()
+            }
 
             node.send([msg, msgLog, null])
         })
@@ -263,11 +279,16 @@ module.exports = function (RED) {
             RED.log.debug("HAPThermostatNode(online): " + status)
 
             if (status) {
-                node.publishAll()
+                //node.publishAll()
             }
         }
 
         this.publishAll = function() {
+            if (node.wdtStatus != 1) {
+                RED.log.debug("HAPThermostatNode(publishAll): not online")
+                return
+            }
+
             var d = {
                 targetheatingcoolingstate:   service.getCharacteristic(Characteristic["TargetHeatingCoolingState"]).value,
                 targettemperature:           service.getCharacteristic(Characteristic["TargetTemperature"]).value,

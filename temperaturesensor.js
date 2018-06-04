@@ -22,6 +22,7 @@ module.exports = function (RED) {
     var API            = require('./lib/api.js')(RED)
     var HapNodeJS      = require('hap-nodejs')
     var HK             = require('./lib/common_functions.js')
+    var inherits       = require('util').inherits;
 
     var Accessory      = HapNodeJS.Accessory
     var Service        = HapNodeJS.Service
@@ -29,6 +30,50 @@ module.exports = function (RED) {
     var uuid           = HapNodeJS.uuid
 
     function HAPTemperatureSensorNode(config) {
+        var node = this
+
+        /**
+         * Modified Characteristic "Current Temperature"
+         */
+        this.myCurrentTemperature = function() {
+            Characteristic.call(this, 'Current Temperature', '00000011-0000-1000-8000-0026BB765291');
+            this.setProps({
+                format: Characteristic.Formats.FLOAT,
+                unit: Characteristic.Units.CELSIUS,
+                maxValue: 100,      // modified value
+                minValue: -20,
+                minStep: 0.1,
+                perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
+            });
+
+            this.value = this.getDefaultValue();
+        };
+        
+        inherits(this.myCurrentTemperature, Characteristic);
+        
+        this.myCurrentTemperature.UUID = '00000011-0000-1000-8000-0026BB765291';
+
+        /**
+         * Modified Service "Temperature Sensor"
+         */
+        this.myTemperatureSensor = function(displayName, subtype) {
+            Service.call(this, displayName, '0000008A-0000-1000-8000-0026BB765291', subtype);
+
+            // Required Characteristics
+            this.addCharacteristic(node.myCurrentTemperature);
+
+            // Optional Characteristics
+            this.addOptionalCharacteristic(Characteristic.StatusActive);
+            this.addOptionalCharacteristic(Characteristic.StatusFault);
+            this.addOptionalCharacteristic(Characteristic.StatusLowBattery);
+            this.addOptionalCharacteristic(Characteristic.StatusTampered);
+            this.addOptionalCharacteristic(Characteristic.Name);
+        };
+
+        inherits(this.myTemperatureSensor, Service);
+
+        this.myTemperatureSensor.UUID = '0000008A-0000-1000-8000-0026BB765291';
+
         RED.nodes.createNode(this, config)
 
         // MQTT properties
@@ -65,10 +110,17 @@ module.exports = function (RED) {
 
         // add service
         var accessory = this.configNode.accessory
-        var service   = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
+        var service   = null
+        
+        try {
+            // this might fail if node is being restarted (!)
+            service = accessory.addService(this.myTemperatureSensor, this.name, subtypeUUID)
+        } catch(err) {
+            RED.log.debug("HAPTemperatureSensorNode(): service already exists")
+            service = accessory.getService(subtypeUUID)
+        }
 
         this.service = service
-        var node     = this
 
         // the pinCode should be shown to the user until interaction with iOS client starts
         node.status({fill: 'yellow', shape: 'ring', text: node.configNode.pinCode})

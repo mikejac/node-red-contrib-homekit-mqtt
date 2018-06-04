@@ -64,7 +64,15 @@ module.exports = function (RED) {
 
         // add service
         var accessory = this.configNode.accessory
-        var service   = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
+        var service   = null
+        
+        try {
+            // this might fail if node is being restarted (!)
+            service = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
+        } catch(err) {
+            RED.log.debug("HAPSwitchNode(): service already exists")
+            service = accessory.getService(subtypeUUID)
+        }
 
         this.service = service
         var node     = this

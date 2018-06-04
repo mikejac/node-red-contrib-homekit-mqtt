@@ -16,6 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  **/
 
+/*
+mosquitto_pub \
+-t domain/msgbus/v2/broadcast/ifttt/Location.01.Update \
+-m '{"who":"michael","area":"home","type":"enters"}'
+
+*/
+
 module.exports = function (RED) {
     'use strict'
     
@@ -115,20 +122,42 @@ module.exports = function (RED) {
 
         //this.service = service
         var node     = this
+        var service  = null
 
         if (node.hue > -1 || node.saturation > -1) {
             // lightbulb with all characteristics
-            var service  = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
+            try {
+                // this might fail if node is being restarted (!)
+                service = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
+            } catch(err) {
+                RED.log.debug("HAPLightbulbNode(): service already exists")
+                service = accessory.getService(subtypeUUID)
+            }
+
             node.service = service
             node.type    = TYPE.ALL
         } else if (node.brightness > -1) {
             // lightbulb with brightness characteristics
-            var service  = accessory.addService(this.myLightbulb2, this.name, subtypeUUID)
+            try {
+                // this might fail if node is being restarted (!)
+                service = accessory.addService(this.myLightbulb2, this.name, subtypeUUID)
+            } catch(err) {
+                RED.log.debug("HAPLightbulbNode(): service already exists")
+                service = accessory.getService(subtypeUUID)
+            }
+
             node.service = service
             node.type    = TYPE.BRIGHTNESS
         } else {
             // lightbulb with only 'On' characteristic
-            var service  = accessory.addService(this.myLightbulb1, this.name, subtypeUUID)
+            try {
+                // this might fail if node is being restarted (!)
+                service = accessory.addService(this.myLightbulb1, this.name, subtypeUUID)
+            } catch(err) {
+                RED.log.debug("HAPLightbulbNode(): service already exists")
+                service = accessory.getService(subtypeUUID)
+            }
+
             node.service = service
             node.type    = TYPE.ON
         }
@@ -166,16 +195,16 @@ module.exports = function (RED) {
         //
         switch (node.type) {
             case TYPE.BRIGHTNESS:
-                RED.log.debug("HALightbulbNode(): setting default brightness")
+                RED.log.debug("HAPLightbulbNode(): setting default brightness")
                 node.service.setCharacteristic(Characteristic["Brightness"], node.brightness)
                 break
 
             case TYPE.ALL:
-                RED.log.debug("HALightbulbNode(): setting default brightness")
+                RED.log.debug("HAPLightbulbNode(): setting default brightness")
                 node.service.setCharacteristic(Characteristic["Brightness"], node.brightness)
-                RED.log.debug("HALightbulbNode(): setting default hue")
+                RED.log.debug("HAPLightbulbNode(): setting default hue")
                 node.service.setCharacteristic(Characteristic["Hue"], node.hue)
-                RED.log.debug("HALightbulbNode(): setting default saturation")
+                RED.log.debug("HAPLightbulbNode(): setting default saturation")
                 node.service.setCharacteristic(Characteristic["Saturation"], node.saturation)
                 break
         }
@@ -199,19 +228,22 @@ module.exports = function (RED) {
         // incoming regular updates from device
         //
         this.clientConn.updateSubscribe(this.nodename, this.dataId, this.qos, function(topic, payload, packet) {
-            RED.log.debug("HAPLightbulbNode(updateSubscribe): payload = " + payload.toString())
-            node.clientConn.startAliveTimer(node)
+            RED.log.debug("HAPLightbulbNode(updateSubscribe): nodename = " + node.nodename + 
+                            ", dataId = " + node.dataId +
+                            ", payload = " + payload.toString())
 
             try {
                 var obj = JSON.parse(payload)
 
                 if (obj.hasOwnProperty('on')) {
                     node.service.setCharacteristic(Characteristic["On"], obj.on)
-                    RED.log.debug("HALightbulbNode(updateSubscribe): on = " + obj.on)
+                    RED.log.debug("HAPLightbulbNode(updateSubscribe): on = " + obj.on)
                 }
             } catch(err) {
                 RED.log.error("malformed object: " + payload.toString())                
             }
+
+            node.clientConn.startAliveTimer(node)
         }, this.id)
 
         //
@@ -290,21 +322,28 @@ module.exports = function (RED) {
             RED.log.debug("HAPLightbulbNode(online): " + status)
 
             if (status) {
-                node.publishAll()
+                //node.publishAll()
             }
         }
         
         this.publishAll = function() {
+            if (node.wdtStatus != 1) {
+                RED.log.debug("HAPLightbulbNode(publishAll): not online")
+                return
+            }
+
             var d = {}
 
             switch (node.type) {
                 case TYPE.ON:
+                    RED.log.debug("HAPLightbulbNode(publishAll): TYPE.ON")
                     var d = {
                         on:         service.getCharacteristic(Characteristic["On"]).value,
                     }
                     break
 
                 case TYPE.BRIGHTNESS:
+                    RED.log.debug("HAPLightbulbNode(publishAll): TYPE.BRIGHTNESS")
                     var d = {
                         on:         service.getCharacteristic(Characteristic["On"]).value,
                         brightness: service.getCharacteristic(Characteristic["Brightness"]).value
@@ -312,6 +351,7 @@ module.exports = function (RED) {
                     break
     
                 case TYPE.ALL:
+                    RED.log.debug("HAPLightbulbNode(publishAll): TYPE.ALL")
                     var d = {
                         on:         service.getCharacteristic(Characteristic["On"]).value,
                         hue:        service.getCharacteristic(Characteristic["Hue"]).value,
@@ -392,18 +432,23 @@ module.exports = function (RED) {
         })
 
         this.on('close', function(removed, done) {
+            //console.log("HAPLightbulbNode(close): begin")
             node.accessory.removeService(node.service)
 
             if (node.clientConn) {
+                //console.log("HAPLightbulbNode(close): deregister")
                 node.clientConn.deregister(node, done)
             }
 
             if (removed) {
                 // This node has been deleted
+                //console.log("HAPLightbulbNode(close): removed")
             } else {
                 // This node is being restarted
+                //console.log("HAPLightbulbNode(close): restart")
             }
             
+            //console.log("HAPLightbulbNode(close): end")
             done()
         })
     }
