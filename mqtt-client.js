@@ -19,6 +19,8 @@
 module.exports = function(RED) {
     "use strict";
 
+    var HK = require('./lib/common_functions.js')
+
     //
     // topic elements
     //
@@ -27,8 +29,6 @@ module.exports = function(RED) {
 
     var msgbusDestBroadcast         = "broadcast"
  
-    // domain/msgbus/v2/broadcast/<RemoteNodename>/<Outlet.03> + ".Update"
-
     var msgbusUpdate                = "Update"
     var msgbusWrite                 = "Write"
     var msgbusRead                  = "Read"
@@ -103,13 +103,15 @@ module.exports = function(RED) {
         var node = this
 
         if (this.brokerConn) {
-            node.brokerConn.register(node)
+            //node.brokerConn.register(node)
         } else {
             node.log(RED._("msgbus-v2.errors.missing-config"))
         }
 
         this.on('close', function(done) {
-            node.brokerConn.deregister(node, done)
+            if (node.brokerConn) {
+                node.brokerConn.deregister(node, done);
+            }
         })
 
         this.users = {}
@@ -117,11 +119,8 @@ module.exports = function(RED) {
         // define functions called by Msgbus nodes
         this.register = function(msgbusNode){
             RED.log.debug("HomeKitMQTTClientNode(): register")
+            node.brokerConn.register(msgbusNode)
             node.users[msgbusNode.id] = msgbusNode
-
-            if (Object.keys(node.users).length === 1) {
-                //node.connect()
-            }
 
             if (node.brokerConn.connected) {
                 msgbusNode.status({fill:"green",shape:"dot",text:"node-red:common.status.connected"})
@@ -148,31 +147,24 @@ module.exports = function(RED) {
                     }
                 } catch (err) {
                     RED.log.error("HomeKitMQTTClientNode(): malformed object; " + payload.toString())
-                    //RED.log.error("HomeKitMQTTClientNode(): malformed object; err = " + err.message)
                 }
-            }, node.id)
+            }, msgbusNode.id)
         }
     
         this.deregister = function(msgbusNode, done){
             RED.log.debug("HomeKitMQTTClientNode(): deregister")
+
+            var topic = topicRPCSubscribe(node.nodename, msgbusNode.nodename, msgbusNode.dataId)
+            node.brokerConn.unsubscribe(topic, msgbusNode.id);
+
+            var topic = topicUpdateSubscribe(node.domain, msgbusNode.nodename, msgbusNode.dataId)
+            node.brokerConn.unsubscribe(topic, msgbusNode.id);
+
             delete node.users[msgbusNode.id]
 
-            if (node.closing) {
-                return done()
-            }
-
-            if (Object.keys(node.users).length === 0) {
-                //if (node.blynk && node.client.connected) {
-                    //return node.client.end(done);
-                //} else {
-                    //node.client.end();
-                    return done()
-                //}
-            }
-
-            done()
+            node.brokerConn.deregister(msgbusNode, done);
         }
-
+        
         this.updateSubscribe = function(nodename, dataId, qos, callback, ref) {
             RED.log.debug("HomeKitMQTTClientNode(): updateSubscribe")
 
@@ -181,14 +173,6 @@ module.exports = function(RED) {
             node.brokerConn.subscribe(topic, qos, callback, ref)
         }
 
-        /*this.updateSubscribeX = function(nodename, dataId, qos, callback, ref) {
-            RED.log.debug("HomeKitMQTTClientNode(): updateSubscribe")
-
-            var topic = topicUpdateSubscribeX(node.domain, nodename, dataId)
-
-            node.brokerConn.subscribe(topic, qos, callback, ref)
-        }*/
-
         this.rpcPublish = function (nodename, id, dataId, event, payload) {
             RED.log.debug("HomeKitMQTTClientNode(): rpcPublish")
 
@@ -196,7 +180,6 @@ module.exports = function(RED) {
                 "src": node.nodename + "_" + nodename + "_" + dataId,
                 "id": id,
                 "method": dataId + "." + msgbusWrite,
-                //"method": dataId + "." + event + "." + msgbusWrite,
                 "args": payload
             }
 
@@ -381,14 +364,13 @@ module.exports = function(RED) {
 
                 try {
                     var msg = {
-                        topic: dataId,
+                        topic: HK.CreateOutTopic(node.nodename, node.dataId, "raw"),
                         payload: JSON.parse(payload)
                     }
 
                     node.send([msg, msgLog, null])
                 } catch (err) {
                     RED.log.error("HAPRawNode(updateSubscribe): malformed object; " + payload.toString())
-                    //RED.log.error("HAPRawNode(updateSubscribe): malformed object; err = " + err.message)
                 }
             }
         }, this.id)
@@ -456,8 +438,6 @@ module.exports = function(RED) {
             } else {
                 // This node is being restarted
             }
-            
-            done()
         })
     }
     

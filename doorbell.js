@@ -28,7 +28,7 @@ module.exports = function (RED) {
     var Characteristic = HapNodeJS.Characteristic
     var uuid           = HapNodeJS.uuid
 
-    function HAPSwitchNode(config) {
+    function HAPDoorbellNode(config) {
         RED.nodes.createNode(this, config)
 
         // MQTT properties
@@ -41,7 +41,6 @@ module.exports = function (RED) {
         this.alive      = null
         this.lastVal    = {}
         this.rpccnt     = 1
-        this.topicDelim = "/"
 
         if (config.wdt > 0) {
             this.wdt = config.wdt * 1000
@@ -58,6 +57,8 @@ module.exports = function (RED) {
         // HomeKit properties
         this.name        = config.name
         this.serviceName = config.serviceName
+        this.brightness  = config.brightness
+        this.volume      = config.volume
         this.configNode  = RED.nodes.getNode(config.accessory)
 
         // generate UUID from node id
@@ -71,7 +72,7 @@ module.exports = function (RED) {
             // this might fail if node is being restarted (!)
             service = accessory.addService(Service[this.serviceName], this.name, subtypeUUID)
         } catch(err) {
-            RED.log.debug("HAPSwitchNode(): service already exists")
+            RED.log.debug("HAPDoorbellNode(): service already exists")
             service = accessory.getService(subtypeUUID)
         }
 
@@ -85,7 +86,7 @@ module.exports = function (RED) {
 
             node.clientConn.startAliveTimer(node)
         } else {
-            RED.log.error("HAPSwitchNode(): no clientConn")
+            RED.log.error("HAPDoorbellNode(): no clientConn")
         }
 
         // which characteristics are supported?
@@ -106,17 +107,32 @@ module.exports = function (RED) {
         })
 
         //
+        // set defaults
+        //
+        service.setCharacteristic(Characteristic["Brightness"], parseInt(node.brightness))
+        service.setCharacteristic(Characteristic["Volume"], parseInt(node.volume))
+        
+        //
         // incoming regular updates from device
         //
         this.clientConn.updateSubscribe(this.nodename, this.dataId, this.qos, function(topic, payload, packet) {
-            RED.log.debug("HAPSwitchNode(updateSubscribe): payload = " + payload.toString())
+            RED.log.debug("HAPDoorbellNode(updateSubscribe): payload = " + payload.toString())
             node.clientConn.startAliveTimer(node)
+
             try {
                 var obj = JSON.parse(payload)
 
-                if (obj.hasOwnProperty('on')) {
-                    service.setCharacteristic(Characteristic["On"], obj.on)
-                    RED.log.debug("HAPSwitchNode(updateSubscribe): on = " + obj.on)
+                if (obj.hasOwnProperty('programmableswitchevent')) {
+                    service.setCharacteristic(Characteristic["ProgrammableSwitchEvent"], obj.programmableswitchevent)
+                    RED.log.debug("HAPDoorbellNode(updateSubscribe): programmableswitchevent = " + obj.programmableswitchevent)
+                }
+                if (obj.hasOwnProperty('brightness')) {
+                    service.setCharacteristic(Characteristic["Brightness"], obj.brightness)
+                    RED.log.debug("HAPDoorbellNode(updateSubscribe): brightness = " + obj.brightness)
+                }
+                if (obj.hasOwnProperty('volume')) {
+                    service.setCharacteristic(Characteristic["Volume"], obj.volume)
+                    RED.log.debug("HAPDoorbellNode(updateSubscribe): volume = " + obj.volume)
                 }
             } catch(err) {
                 RED.log.error("malformed object: " + payload.toString())                
@@ -129,7 +145,7 @@ module.exports = function (RED) {
         service.on('characteristic-change', function (info) {
             var key = info.characteristic.displayName.replace(/ /g, '')
             
-            RED.log.debug("HAPSwitchNode(characteristic-change): key = " + key + ", value = " + info.newValue)
+            RED.log.debug("HAPDoorbellNode(characteristic-change): key = " + key + ", value = " + info.newValue)
 
             node.status({fill: 'yellow', shape: 'dot', text: key + ': ' + info.newValue})
             setTimeout(function () { node.status({}) }, 3000)
@@ -160,16 +176,23 @@ module.exports = function (RED) {
                 payload: l + " > " + node.nodename + ", " + node.dataId + ": " + key + " = " + msg.payload
             }
 
+            //
+            // send message on the right output
+            //
             switch (key) {
-                case "On":
-                    RED.log.debug("HAPOutletNode(characteristic-change): On")
+                case "ProgrammableSwitchEvent":
+                    RED.log.debug("HAPDoorbellNode(characteristic-change): ProgrammableSwitchEvent")
+                    break
+                case "Brightness":
+                    RED.log.debug("HAPDoorbellNode(characteristic-change): Brightness")
+                    break
+                case "Volume":
+                    RED.log.debug("HAPDoorbellNode(characteristic-change): Volume")
                     break
                 default:
                     RED.log.warn("Unknown characteristics '" + key + "'")
                     return 
             }
-
-            node.publishAll()
 
             node.send([msg, msgLog, null])
         })
@@ -178,7 +201,7 @@ module.exports = function (RED) {
         // RPC replies coming from MQTT
         //
         this.rpcReply = function(reply) {
-            RED.log.debug("HAPSwitchNode(rpcReply)" + JSON.stringify(reply))
+            RED.log.debug("HAPDoorbellNode(rpcReply)" + JSON.stringify(reply))
             node.clientConn.startAliveTimer(node)
         }
 
@@ -186,19 +209,11 @@ module.exports = function (RED) {
         // device online/offline transitions
         //
         this.online = function(status) {
-            RED.log.debug("HAPSwitchNode(online): " + status)
+            RED.log.debug("HAPDoorbellNode(online): " + status)
 
-            if (status) {
-                node.publishAll()
-            }
-        }
-        
-        this.publishAll = function() {
-            var d = {
-                on: service.getCharacteristic(Characteristic["On"]).value
-            }
+            if (status == false) {
 
-            node.clientConn.rpcPublish(node.nodename, node.rpccnt++, node.dataId, "All", d)
+            }
         }
 
         //
@@ -215,15 +230,27 @@ module.exports = function (RED) {
                 RED.log.warn('Invalid message (payload missing)')
                 return
             } else {
-                let topicArr = msg.topic.split(node.topicDelim);
-                let topic    = topicArr[topicArr.length - 1];   // get last part of topic
-
-                if (topic.toUpperCase() == "ON") {
-                    characteristic = "On"
+                //
+                // deal with the msg.topic
+                //
+                if (msg.topic.toUpperCase() == "PROGRAMMABLESWITCHEVENT") {
+                    characteristic = "ProgrammableSwitchEvent"
+                } else if (msg.topic.toUpperCase() == "BRIGHTNESS") {
+                    characteristic = "Brightness"
+                } else if (msg.topic.toUpperCase() == "VOLUME") {
+                    characteristic = "Volume"
                 } else {
-                    if (msg.payload.hasOwnProperty('on')) {
-                        RED.log.debug("HAPSwitchNode(input): on")
-                        service.setCharacteristic(Characteristic["On"], msg.payload.on)
+                    if (msg.payload.hasOwnProperty('programmableswitchevent')) {
+                        RED.log.debug("HAPDoorbellNode(input): programmableswitchevent")
+                        service.setCharacteristic(Characteristic["ProgrammableSwitchEvent"], msg.payload.programmableswitchevent)
+                    }
+                    if (msg.payload.hasOwnProperty('brightness')) {
+                        RED.log.debug("HAPDoorbellNode(input): brightness")
+                        service.setCharacteristic(Characteristic["Brightness"], msg.payload.brightness)
+                    }
+                    if (msg.payload.hasOwnProperty('volume')) {
+                        RED.log.debug("HAPDoorbellNode(input): volume")
+                        service.setCharacteristic(Characteristic["Volume"], msg.payload.volume)
                     }
 
                     return
@@ -252,7 +279,7 @@ module.exports = function (RED) {
 
         this.on('close', function(removed, done) {
             accessory.removeService(service)
-
+            
             if (node.clientConn) {
                 node.clientConn.deregister(node, done)
             }
@@ -265,5 +292,5 @@ module.exports = function (RED) {
         })
     }
     
-    RED.nodes.registerType('homekit-switch-v2', HAPSwitchNode)
+    RED.nodes.registerType('homekit-doorbell-v2', HAPDoorbellNode)
 }

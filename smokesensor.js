@@ -75,8 +75,7 @@ module.exports = function (RED) {
             service = accessory.getService(subtypeUUID)
         }
 
-        this.service = service
-        var node     = this
+        var node = this
 
         // the pinCode should be shown to the user until interaction with iOS client starts
         node.status({fill: 'yellow', shape: 'ring', text: node.configNode.pinCode})
@@ -178,7 +177,7 @@ module.exports = function (RED) {
             msg.format       = info.characteristic.props.format
             
             msg.payload      = HK.FormatValue(info.characteristic.props.format, info.newValue)
-            msg.topic        = key
+            msg.topic        = HK.CreateOutTopic(node.nodename, node.dataId, key)
 
             if (msg.payload == null) {
                 RED.log.warn("Unable to format value")
@@ -315,7 +314,7 @@ module.exports = function (RED) {
         })
 
         this.on('close', function(removed, done) {
-            accessory.removeService(node.service)
+            accessory.removeService(service)
             
             if (node.clientConn) {
                 node.clientConn.deregister(node, done)
@@ -326,8 +325,6 @@ module.exports = function (RED) {
             } else {
                 // This node is being restarted
             }
-            
-            done()
         })
     }
     

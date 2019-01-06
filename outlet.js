@@ -39,8 +39,9 @@ module.exports = function (RED) {
         this.wdt        = -1
         this.wdtStatus  = -1
         this.alive      = null
-        this.lastVal    = {}
         this.rpccnt     = 1
+        this.topicDelim = "/"
+        
 
         if (config.wdt > 0) {
             this.wdt = (config.wdt + 5) * 1000
@@ -53,6 +54,13 @@ module.exports = function (RED) {
             this.error(RED._("msgbus-v2.errors.missing-config"))
             return
         }
+
+        /*this.lastVal = {
+            on: false,
+            outletinuse: true
+        };
+
+        HK.Save(this, this.nodename, this.dataId, this.lastVal);*/
 
         // HomeKit properties
         this.name        = config.name
@@ -75,9 +83,7 @@ module.exports = function (RED) {
             service = accessory.getService(subtypeUUID)
         }
 
-        this.service = service
-        this.service = null
-        var node     = this
+        var node = this
 
         // the pinCode should be shown to the user until interaction with iOS client starts
         node.status({fill: 'yellow', shape: 'ring', text: node.configNode.pinCode})
@@ -158,7 +164,7 @@ module.exports = function (RED) {
             msg.format       = info.characteristic.props.format
             
             msg.payload      = HK.FormatValue(info.characteristic.props.format, info.newValue)
-            msg.topic        = key
+            msg.topic        = HK.CreateOutTopic(node.nodename, node.dataId, key)
 
             if (msg.payload == null) {
                 RED.log.warn("Unable to format value")
@@ -239,12 +245,15 @@ module.exports = function (RED) {
                 RED.log.warn('Invalid message (payload missing)')
                 return
             } else {
+                let topicArr = msg.topic.split(node.topicDelim);
+                let topic    = topicArr[topicArr.length - 1];   // get last part of topic
+
                 //
                 // deal with the msg.topic
                 //
-                if (msg.topic.toUpperCase() == "ON") {
+                if (topic.toUpperCase() == "ON") {
                     characteristic = "On"
-                } else if (msg.topic.toUpperCase() == "OUTLETINUSE") {
+                } else if (topic.toUpperCase() == "OUTLETINUSE") {
                     characteristic = "OutletInUse"
                 } else {
                     if (msg.payload.hasOwnProperty('on')) {
@@ -281,7 +290,7 @@ module.exports = function (RED) {
         })
 
         this.on('close', function(removed, done) {
-            accessory.removeService(node.service)
+            accessory.removeService(service)
 
             if (node.clientConn) {
                 node.clientConn.deregister(node, done)
@@ -292,8 +301,6 @@ module.exports = function (RED) {
             } else {
                 // This node is being restarted
             }
-            
-            done()
         })
     }
     

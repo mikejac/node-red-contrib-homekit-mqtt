@@ -90,6 +90,7 @@ module.exports = function (RED) {
         this.alive      = null
         this.lastVal    = {}
         this.rpccnt     = 1
+        this.topicDelim = "/"
 
         if (config.wdt > 0) {
             this.wdt = config.wdt * 1000
@@ -102,6 +103,13 @@ module.exports = function (RED) {
             this.error(RED._("msgbus-v2.errors.missing-config"))
             return
         }
+
+        /*if (this.nodename == "client007") {
+            this.debug = true
+        } else {
+            this.debug = false
+        }*/
+        this.debug = false
 
         // HomeKit properties
         this.name        = config.name
@@ -209,21 +217,6 @@ module.exports = function (RED) {
                 break
         }
 
-        /*if (node.brightness > -1) {
-            RED.log.debug("HALightbulbNode(): setting default brightness")
-            node.service.setCharacteristic(Characteristic["Brightness"], node.brightness)
-        }
-
-        if (node.hue > -1) {
-            RED.log.debug("HALightbulbNode(): setting default hue")
-            node.service.setCharacteristic(Characteristic["Hue"], node.hue)
-        }
-
-        if (node.saturation > -1) {
-            RED.log.debug("HALightbulbNode(): setting default saturation")
-            node.service.setCharacteristic(Characteristic["Saturation"], node.saturation)
-        }*/
-
         //
         // incoming regular updates from device
         //
@@ -252,12 +245,14 @@ module.exports = function (RED) {
         service.on('characteristic-change', function (info) {
             var key = info.characteristic.displayName.replace(/ /g, '')
             
+            if (node.debug) {
+                console.log("characteristic-change: key = ", key, "value = ", info.newValue)
+            }
             RED.log.debug("HAPLightbulbNode(characteristic-change): key = " + key + ", value = " + info.newValue)
 
             node.status({fill: 'yellow', shape: 'dot', text: key + ': ' + info.newValue})
             setTimeout(function () { node.status({}) }, 3000)
 
-            //var msg = { payload: {}, hap: info}
             var msg = { payload: {}}
             
             msg.manufacturer = node.configNode.manufacturer
@@ -267,7 +262,7 @@ module.exports = function (RED) {
             msg.format       = info.characteristic.props.format
             
             msg.payload      = HK.FormatValue(info.characteristic.props.format, info.newValue)
-            msg.topic        = key
+            msg.topic        = HK.CreateOutTopic(node.nodename, node.dataId, key)
 
             if (msg.payload == null) {
                 RED.log.warn("Unable to format value")
@@ -378,16 +373,19 @@ module.exports = function (RED) {
                 RED.log.warn('Invalid message (payload missing)')
                 return
             } else {
+                let topicArr = msg.topic.split(node.topicDelim);
+                let topic    = topicArr[topicArr.length - 1];   // get last part of topic
+
                 //
                 // deal with the msg.topic
                 //
-                if (msg.topic.toUpperCase() == "ON") {
+                if (topic.toUpperCase() == "ON") {
                     characteristic = "On"
-                } else if (msg.topic.toUpperCase() == "BRIGHTNESS") {
+                } else if (topic.toUpperCase() == "BRIGHTNESS") {
                     characteristic = "Brightness"
-                } else if (msg.topic.toUpperCase() == "HUE") {
+                } else if (topic.toUpperCase() == "HUE") {
                     characteristic = "Hue"
-                } else if (msg.topic.toUpperCase() == "SATURATION") {
+                } else if (topic.toUpperCase() == "SATURATION") {
                     characteristic = "Saturation"
                 } else {
                     if (msg.payload.hasOwnProperty('on')) {
@@ -432,27 +430,29 @@ module.exports = function (RED) {
         })
 
         this.on('close', function(removed, done) {
-            //console.log("HAPLightbulbNode(close): begin")
             node.accessory.removeService(node.service)
 
             if (node.clientConn) {
-                //console.log("HAPLightbulbNode(close): deregister")
                 node.clientConn.deregister(node, done)
             }
 
             if (removed) {
                 // This node has been deleted
-                //console.log("HAPLightbulbNode(close): removed")
             } else {
                 // This node is being restarted
-                //console.log("HAPLightbulbNode(close): restart")
             }
-            
-            //console.log("HAPLightbulbNode(close): end")
-            done()
         })
     }
     
     RED.nodes.registerType('homekit-lightbulb-v2', HAPLightbulbNode)
 }
 
+/*
+8 stk. i alt
+
+Vinkelprofil, Alu
+20x30x2mm
+
+4004338472733
+Gust.Alberts GmBH & Co. KG
+*/

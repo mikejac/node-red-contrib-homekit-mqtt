@@ -1,0 +1,145 @@
+<!--
+ NodeRED HomeKit MQTT
+ Copyright (C) 2017 Michael Jacobsen / Marius Schmeding.
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+
+<script type="text/x-red" data-template-name="homekit-doorbell-v2">
+    <div class="form-row">
+        <b>MQTT Settings</b>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-client"><i class="fa fa-globe"></i> MQTT Server</span></label>
+        <input type="text" id="node-input-client">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-nodename"><i class="fa fa-tag"></i> Nodename</span></label>
+        <input type="text" id="node-input-nodename" Nodename>
+    </div>
+    <div class="form-row">
+        <label for="node-input-dataid"><i class="fa fa-tag"></i> Data Id</span></label>
+        <input type="text" id="node-input-dataid" Data Id>
+    </div>
+    <div class="form-row">
+        <label for="node-input-wdt"><i class="fa fa-tag"></i> Watchdog</span></label>
+        <input type="text" id="node-input-wdt" 60>
+    </div>
+
+    <div class="form-row">
+        <b>HomeKit Settings</b>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-accessory">
+        <i class="fa fa-rocket"></i>
+        Accessory</label>
+        <input id="node-input-accessory">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-name">
+            <i class="fa fa-tag"></i>
+            Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <b>Default values</b>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-brightness">
+            <i class="fa fa-tag"></i>
+            Brightness</label>
+        <input type="text" id="node-input-brightness" placeholder="100">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-volume">
+            <i class="fa fa-tag"></i>
+            Volume</label>
+        <input type="text" id="node-input-volume" placeholder="100">
+    </div>
+
+    <div class="form-tips">
+        <b>Input</b><br/>
+        <code>msg.topic</code> must be one of these:<br/>
+        <i><nbsp>programmableswitchevent</i> (UInt8, 0, 1, 2)<br/>
+        <i><nbsp>brightness</i> (UInt8, 0 - 100)<br/>
+        <i><nbsp>volume</i> (UInt8, 0 - 100)<br/>
+        <br/>
+        <b>Outputs</b><br/>
+        <code>1:</code> Transactions<br/>
+        <code>2:</code> Log<br/>
+        <code>3:</code> Online/Offline status<br/>
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('homekit-doorbell-v2', {
+        category: 'homekit_mqtt-function',
+        paletteLabel: 'DoorBell',
+        defaults: {
+            client: {
+                type: "homekit-mqtt-client", 
+                required: true
+            },
+            nodename: {
+                value: "",
+                required: true
+            },
+            dataid: {
+                value: "Doorbell.", 
+                required: true
+            },
+            wdt: {
+                value: 65,
+                required: true,
+                validate:RED.validators.number()
+            },
+            accessory: {
+                value: "",
+                type: "homekit-accessory-v2",
+                required: true
+            },
+            name: {
+                value: ""
+            },
+            serviceName: {
+                value: "Doorbell",
+                required: true
+            },
+            brightness: {
+                value: 100
+            },
+            volume: {
+                value: 100
+            }
+        },
+        inputs: 1,
+        outputs: 3,
+        icon: "homekit.png",
+        color: "#fcc127",
+        label: function() {
+            return this.name || "Doorbell";
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : ""
+        }
+    })
+</script>
+
