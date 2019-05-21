@@ -16,13 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  **/
 
-/*
-mosquitto_pub \
--t domain/msgbus/v2/broadcast/ifttt/Location.01.Update \
--m '{"who":"michael","area":"home","type":"enters"}'
-
-*/
-
 module.exports = function (RED) {
     'use strict'
     
@@ -142,8 +135,8 @@ module.exports = function (RED) {
                 service = accessory.getService(subtypeUUID)
             }
 
-            node.service = service
-            node.type    = TYPE.ALL
+            node.service   = service
+            node.lighttype = TYPE.ALL
         } else if (node.brightness > -1) {
             // lightbulb with brightness characteristics
             try {
@@ -154,8 +147,8 @@ module.exports = function (RED) {
                 service = accessory.getService(subtypeUUID)
             }
 
-            node.service = service
-            node.type    = TYPE.BRIGHTNESS
+            node.service   = service
+            node.lighttype = TYPE.BRIGHTNESS
         } else {
             // lightbulb with only 'On' characteristic
             try {
@@ -166,8 +159,8 @@ module.exports = function (RED) {
                 service = accessory.getService(subtypeUUID)
             }
 
-            node.service = service
-            node.type    = TYPE.ON
+            node.service   = service
+            node.lighttype = TYPE.ON
         }
         
         // the pinCode should be shown to the user until interaction with iOS client starts
@@ -201,7 +194,7 @@ module.exports = function (RED) {
         //
         // set defaults
         //
-        switch (node.type) {
+        switch (node.lighttype) {
             case TYPE.BRIGHTNESS:
                 RED.log.debug("HAPLightbulbNode(): setting default brightness")
                 node.service.setCharacteristic(Characteristic["Brightness"], node.brightness)
@@ -329,7 +322,7 @@ module.exports = function (RED) {
 
             var d = {}
 
-            switch (node.type) {
+            switch (node.lighttype) {
                 case TYPE.ON:
                     RED.log.debug("HAPLightbulbNode(publishAll): TYPE.ON")
                     var d = {
@@ -446,13 +439,3 @@ module.exports = function (RED) {
     
     RED.nodes.registerType('homekit-lightbulb-v2', HAPLightbulbNode)
 }
-
-/*
-8 stk. i alt
-
-Vinkelprofil, Alu
-20x30x2mm
-
-4004338472733
-Gust.Alberts GmBH & Co. KG
-*/
