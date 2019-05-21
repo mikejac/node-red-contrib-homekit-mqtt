@@ -123,7 +123,9 @@ module.exports = function (RED) {
                 var obj = JSON.parse(payload)
 
                 if (obj.hasOwnProperty('programmableswitchevent')) {
-                    service.setCharacteristic(Characteristic["ProgrammableSwitchEvent"], obj.programmableswitchevent)
+                    if (obj.programmableswitchevent != 255) {
+                        service.setCharacteristic(Characteristic["ProgrammableSwitchEvent"], obj.programmableswitchevent)
+                    }
                     RED.log.debug("HAPDoorbellNode(updateSubscribe): programmableswitchevent = " + obj.programmableswitchevent)
                 }
                 if (obj.hasOwnProperty('brightness')) {
